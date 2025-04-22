@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Agendamentos</title>
+  <style>
+      body { font-family: Arial, sans-serif; margin: 40px; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+      tr:nth-child(even) { background: #f6f6f6; }
+      .form-filtro { margin-bottom: 20px; }
+      .form-filtro select,
+      .form-filtro input { margin: 0 10px 0 0; padding: 4px 8px; }
+      .form-filtro button { padding: 4px 16px; }
+  </style>
+</head>
+<body>
+  <h1>Agendamentos</h1>
+  
+  <!-- FORMULÁRIO DE FILTRO -->
+   
+  <form method="get" action="/agendamentos" class="form-filtro">
+  <label for="filtro">Filtrar por:</label>
+  <select name="filtro" id="filtro" onchange="mostrarCampoFiltro(this.value)">
+    <option value="">Escolha...</option>
+    <option value="nome" <%= filtro==='nome' ? 'selected' : '' %>>Nome</option>
+    <option value="cpf" <%= filtro==='cpf' ? 'selected' : '' %>>CPF</option>
+    <option value="procedimento" <%= filtro==='procedimento' ? 'selected' : '' %>>Procedimento</option>
+    <option value="dia" <%= filtro==='dia' ? 'selected' : '' %>>Dia</option>
+  </select>
+
+  <!-- Campo texto para nome/cpf -->
+  <input type="text" name="valorTexto" id="campoTexto"
+    style="display:none;"
+    value="<%= (filtro==='nome' || filtro==='cpf') ? valor : '' %>"
+    placeholder="Digite para buscar" autocomplete="off" />
+
+  <!-- Select de procedimentos -->
+  <select name="valorProcedimento" id="campoProcedimento" style="display:none;">
+    <% listaProcedimentos.forEach(p => { %>
+      <option value="<%= p.id %>" <%= valor == p.id ? 'selected' : '' %>><%= p.nome %></option>
+    <% }) %>
+  </select>
+
+  <!-- Campo data para dia -->
+  <input type="date" name="valorData" id="campoData"
+    style="display:none;width: 170px"
+    value="<%= filtro==='dia' ? valor : '' %>" />
+
+  <button type="submit">Filtrar</button>
+
+  <% if (filtro) { %>
+    <a href="/agendamentos">(Limpar filtro)</a>
+  <% } %>
+</form>
+
+  <script>
+    function mostrarCampoFiltro(tipo) {
+        document.getElementById('campoTexto').style.display = (tipo === 'nome' || tipo === 'cpf') ? 'inline-block' : 'none';
+        document.getElementById('campoProcedimento').style.display = (tipo === 'procedimento') ? 'inline-block' : 'none';
+        document.getElementById('campoData').style.display = (tipo === 'dia') ? 'inline-block' : 'none';
+    }
+    window.onload = function() { mostrarCampoFiltro(document.getElementById('filtro').value); }
+  </script>
+
+  <!-- TABELA DE AGENDAMENTOS -->
+  <table>
+    <tr>
+      <th>Nome</th>
+      <th>CPF</th>
+      <th>Dia</th>
+      <th>Horário</th>
+      <th>Procedimento</th>
+      <th>Valor</th>
+      <th>Ações</th>
+    </tr>
+    <% if (ags.length === 0) { %>
+      <tr><td colspan="7" style="text-align:center;">Nenhum agendamento encontrado.</td></tr>
+    <% } else { %>
+      <% ags.forEach(a => { %>
+        <tr>
+          <td><%= a.cliente_nome %></td> <!-- Agora exibe o nome do cliente -->
+          <td><%= a.cliente_cpf %></td> <!-- Agora exibe o CPF do cliente -->
+          <td><%= a.dia %></td>
+          <td><%= a.horario %></td>
+          <td><%= a.procedimento %></td>
+          <td>R$ <%= a.valor.toFixed(2) %></td>
+          <td>
+            <form method="post" action="/apagar-agendamento/<%= a.id %>" style="display:inline;" onsubmit="return confirm('Excluir este agendamento?');">
+              <button type="submit">Excluir</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    <% } %>
+  </table>
+  
+
+  <p style="margin-top:30px;">
+      <a href="/novo-agendamento">Novo Agendamento</a> |
+      <a href="/logout">Logout</a>
+  </p>
+</body>
+</html>

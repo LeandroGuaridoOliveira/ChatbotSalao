@@ -1,0 +1,12 @@
+# Dependências
+node_modules/
+
+# Cache do WhatsApp Web JS
+.wwebjs_cache/
+
+# Arquivos sensíveis
+.env
+
+# Arquivos de log
+*.log
+

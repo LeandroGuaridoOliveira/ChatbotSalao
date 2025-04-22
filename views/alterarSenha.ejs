@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Alterar senha</title>
+<style>
+body { font-family: Arial; background: #f6f6fa;}
+.central { margin: 80px auto; width: 330px; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #ccc; padding: 32px;}
+.erro { color: #d32f2f;}
+.sucesso { color: #388e3c;}
+input[type="password"] { width:100%; padding:8px; margin-bottom:14px; border-radius:4px; border:1px solid #ccc;}
+button { background: #7e57c2; color: #fff; border:none; width:100%; padding:9px 0; font-weight:bold; border-radius:4px;}
+a { color: #7e57c2;}
+h3 { color: #7e57c2;}
+</style>
+</head>
+<body>
+<div class="central">
+  <h3>Alterar senha</h3>
+  <% if(msg) { %>
+    <div class="<%= msg.tipo %>"><%= msg.texto %></div>
+  <% } %>
+  <form method="post">
+    <input type="password" name="senhaAtual" placeholder="Senha atual" required>
+    <input type="password" name="novaSenha" placeholder="Nova senha" required>
+    <input type="password" name="confirmarSenha" placeholder="Confirmar nova senha" required>
+    <button type="submit">Alterar</button>
+  </form>
+  <div style="margin-top:10px; font-size:14px;"><a href="/agendamentos">&larr; Voltar à lista</a></div>
+</div>
+</body>
+</html>
