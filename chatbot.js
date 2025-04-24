@@ -3,6 +3,7 @@ const { Client } = require('whatsapp-web.js');
 const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
 
+
 async function abrirBancoComRetry(tentativas = 10, delayMs = 200) {
     for (let i = 0; i < tentativas; i++) {
         try {
