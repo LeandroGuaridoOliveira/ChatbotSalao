@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Editar Funcionário</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; background-color: #f9f9f9; }
+    h1 { color: #7e57c2; }
+    .pill-button {
+      display: inline-block;
+      padding: 8px 14px;
+      border-radius: 20px;
+      border: 1px solid #7e57c2;
+      background: #fff;
+      color: #7e57c2;
+      cursor: pointer;
+      margin: 4px 6px 10px 0;
+      transition: all 0.2s ease-in-out;
+      user-select: none;
+    }
+    .pill-button input {
+      display: none;
+    }
+    .pill-button.checked {
+      background-color: #7e57c2;
+      color: white;
+    }
+    button {
+      margin-top: 16px;
+      background-color: #7e57c2;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Editar Funcionário</h1>
+
+  <form method="post" action="/editar-funcionario/<%= funcionario.id %>">
+    <input type="text" name="nome" value="<%= funcionario.nome %>" required>
+
+    <label style="display: block; margin-top: 12px; font-weight: bold;">Especialidades:</label>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px;">
+      <% especialidades.forEach(e => { %>
+        <label class="pill-button <%= especialidadeIds.includes(e.id) ? 'checked' : '' %>">
+          <input type="checkbox" name="especialidade_ids" value="<%= e.id %>" <%= especialidadeIds.includes(e.id) ? 'checked' : '' %>>
+          <%= e.nome %>
+        </label>
+      <% }) %>
+    </div>
+
+    <button type="submit">Salvar</button>
+    <a href="/funcionarios" style="margin-left: 10px; color: #7e57c2;">Cancelar</a>
+  </form>
+
+  <script>
+    document.querySelectorAll('.pill-button').forEach(pill => {
+      const checkbox = pill.querySelector('input');
+      pill.addEventListener('click', () => {
+        checkbox.checked = !checkbox.checked;
+        pill.classList.toggle('checked', checkbox.checked);
+      });
+    });
+  </script>
+</body>
+</html>

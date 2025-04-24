@@ -107,28 +107,50 @@
   </style>
 </head>
 <body>
-  <h1>Funcionários</h1>
+<!-- Mensagem de sucesso (se houver) -->
+<% if (msg) { %>
+  <div id="alert-box" class="bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded-xl mb-4 shadow flex items-start justify-between">
+    <div class="flex items-center gap-2">
+      <span class="text-green-600 text-xl font-bold">✔️</span>
+      <p class="font-medium"><%= msg %></p>
+<% } %>
 
-  <% if (msg) { %>
-    <div class="mensagem"><%= msg %></div>
-  <% } %>
-
-  <table>
+<!-- Lista de funcionários -->
+<h2 style="margin-top: 40px;">Funcionários Cadastrados</h2>
+<table style="width: 100%; border-collapse: collapse; margin-top: 12px; background: #fff; box-shadow: 0 2px 6px #ccc;">
+  <tr style="background-color: #ede7f6; color: #5e35b1;">
+    <th style="padding: 12px;">Nome</th>
+    <th style="padding: 12px;">Especialidades</th>
+    <th style="padding: 12px;">Ações</th>
+  </tr>
+  <% funcionarios.forEach(f => { %>
     <tr>
-      <th>Nome</th>
-      <th>Ações</th>
+      <td style="padding: 10px;"><%= f.nome %></td>
+      <td style="padding: 10px;">
+        <% if (f.especialidades) { %>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            <% f.especialidades.split(',').forEach(e => { %>
+              <span style="background-color: #ede7f6; color: #5e35b1; padding: 4px 10px; border-radius: 16px; font-size: 13px;">
+                <%= e.trim() %>
+              </span>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <span style="color: #999;">Nenhuma</span>
+        <% } %>
+      </td>
+      <td style="padding: 10px;">
+        <!-- Botão de exclusão, pode adicionar botão de edição depois -->
+        <form method="post" action="/excluir-funcionario/<%= f.id %>" onsubmit="return confirm('Deseja excluir este funcionário?');" style="display:inline;">
+          <button type="submit" class="btn-excluir">Excluir</button>
+        </form>
+        <form method="get" action="/editar-funcionario/<%= f.id %>" style="display:inline; margin-right: 6px;">
+          <button type="submit" class="btn-editar">Editar</button>
+        </form>        
+      </td>
     </tr>
-    <% funcionarios.forEach(f => { %>
-      <tr>
-        <td><%= f.nome %></td>
-        <td>
-          <form method="post" action="/funcionarios/<%= f.id %>/excluir" onsubmit="return confirm('Tem certeza que deseja excluir este funcionário?');">
-            <button type="submit" class="btn-excluir">Excluir</button>
-          </form>
-        </td>
-      </tr>
-    <% }) %>
-  </table>
+  <% }) %>
+</table>
 
   <h2>Adicionar Novo Funcionário</h2>
 

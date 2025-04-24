@@ -274,6 +274,9 @@ app.get('/agendamentos', requireLogin, async (req, res) => {
         a.cliente_cpf = formatarCPF(a.cliente_cpf);
     });
 
+    const msg = req.session.msg;
+    delete req.session.msg;
+    
     res.render('agendamentos', {
         ags,
         listaProcedimentos,
@@ -283,6 +286,7 @@ app.get('/agendamentos', requireLogin, async (req, res) => {
         valorProcedimento,
         valorData,
         valorFuncionario,
+        msg,
         valor: filtro === 'nome' || filtro === 'cpf' ? valorTexto
             : filtro === 'procedimento' ? valorProcedimento
             : filtro === 'dia' ? valorData
@@ -354,16 +358,29 @@ app.post('/apagar-agendamento/:id', requireLogin, async (req, res) => {
 
 app.get('/funcionarios', requireLogin, async (req, res) => {
     const db = await abrirBanco();
-    const funcionarios = await db.all('SELECT * FROM funcionarios');
-    const especialidades = await db.all('SELECT * FROM especialidades'); // <-- ESSA LINHA É FUNDAMENTAL
+
+    const funcionarios = await db.all(`
+        SELECT f.id, f.nome,
+               GROUP_CONCAT(e.nome, ', ') AS especialidades
+        FROM funcionarios f
+        LEFT JOIN funcionario_especialidades fe ON f.id = fe.funcionario_id
+        LEFT JOIN especialidades e ON fe.especialidade_id = e.id
+        GROUP BY f.id
+    `);
+
+    const especialidades = await db.all('SELECT * FROM especialidades');
+
     await db.close();
 
     res.render('funcionarios', {
         funcionarios,
-        especialidades, // <-- ESSA LINHA TAMBÉM!
-        msg: null
+        especialidades,
+        msg: req.session.msg || null
     });
+
+    delete req.session.msg;
 });
+
 
 app.post('/funcionarios', requireLogin, async (req, res) => {
     const { nome } = req.body;
@@ -449,6 +466,147 @@ app.get('/horarios-ocupados', async (req, res) => {
         res.status(500).json([]);
     }
 });
+
+app.get('/editar-agendamento/:id', requireLogin, async (req, res) => {
+    const id = req.params.id;
+    const db = await abrirBanco();
+
+    const agendamento = await db.get(`SELECT * FROM agendamentos WHERE id = ?`, [id]);
+    const cliente = await db.get(`SELECT * FROM clientes WHERE id = ?`, [agendamento.cliente_id]);
+    const procedimentosSelecionados = await db.all(`SELECT procedimento_id FROM agendamento_procedimentos WHERE agendamento_id = ?`, [id]);
+
+    const procedimentos = await db.all('SELECT * FROM procedimentos');
+    const funcionarios = await db.all('SELECT * FROM funcionarios');
+
+    await db.close();
+
+    const procedimentoIds = procedimentosSelecionados.map(p => p.procedimento_id);
+
+    res.render('editarAgendamento', {
+        agendamento,
+        cliente,
+        procedimentos,
+        funcionarios,
+        procedimentoIds,
+        msg: null
+    });
+});
+
+app.post('/editar-agendamento/:id', requireLogin, async (req, res) => {
+    const id = req.params.id;
+    let { nome, cpf, dia, horario, funcionario_id, procedimento_id } = req.body;
+
+    const db = await abrirBanco();
+    const procedimentos = await db.all(`SELECT * FROM procedimentos`);
+    const funcionarios = await db.all(`SELECT * FROM funcionarios`);
+
+    if (!Array.isArray(procedimento_id)) procedimento_id = [procedimento_id];
+    procedimento_id = procedimento_id.filter(p => p !== '');
+
+    let cpfLimpo = cpf.replace(/\D/g, '');
+
+    if (!funcionario_id || cpfLimpo.length !== 11 || procedimento_id.length === 0) {
+        return res.render('editarAgendamento', {
+            agendamento: { id, nome, cpf, dia, horario, funcionario_id },
+            procedimentos,
+            funcionarios,
+            selecionadosIds: procedimento_id.map(Number),
+            msg: 'Dados inválidos. Verifique todos os campos.'
+        });
+    }
+    
+    // Verifica conflito de horário com outro agendamento
+    const conflito = await db.get(`
+        SELECT * FROM agendamentos
+        WHERE dia = ? AND horario = ? AND funcionario_id = ? AND id != ?
+    `, [dia, horario, funcionario_id, id]);
+
+    if (conflito) {
+        await db.close();
+        return res.render('editarAgendamento', {
+            agendamento: { id, nome, cpf, dia, horario, funcionario_id },
+            procedimentos,
+            funcionarios,
+            selecionadosIds: procedimento_id.map(Number),
+            msg: 'Já existe um agendamento neste horário com esse funcionário.'
+        });
+    }
+
+    // Atualiza ou insere cliente
+    let cliente = await db.get('SELECT * FROM clientes WHERE cpf = ?', [cpfLimpo]);
+    if (!cliente) {
+        await db.run('INSERT INTO clientes (nome, cpf) VALUES (?, ?)', [nome, cpfLimpo]);
+        cliente = await db.get('SELECT * FROM clientes WHERE cpf = ?', [cpfLimpo]);
+    }
+
+    await db.run(`
+        UPDATE agendamentos
+        SET cliente_id = ?, dia = ?, horario = ?, funcionario_id = ?
+        WHERE id = ?
+    `, [cliente.id, dia, horario, funcionario_id, id]);
+
+    await db.run('DELETE FROM agendamento_procedimentos WHERE agendamento_id = ?', [id]);
+    for (const pid of procedimento_id) {
+        await db.run('INSERT INTO agendamento_procedimentos (agendamento_id, procedimento_id) VALUES (?, ?)', [id, pid]);
+    }
+
+    await db.close();
+    req.session.msg = 'Agendamento atualizado com sucesso!';
+    res.redirect('/agendamentos');
+    });
+
+    app.post('/excluir-funcionario/:id', requireLogin, async (req, res) => {
+        const id = req.params.id;
+        const db = await abrirBanco();
+      
+        await db.run('DELETE FROM funcionario_especialidades WHERE funcionario_id = ?', [id]);
+        await db.run('DELETE FROM funcionarios WHERE id = ?', [id]);
+      
+        await db.close();
+      
+        req.session.msg = 'Funcionário excluído com sucesso!';
+        res.redirect('/funcionarios');
+      });
+      
+      app.get('/editar-funcionario/:id', requireLogin, async (req, res) => {
+        const db = await abrirBanco();
+        const id = req.params.id;
+      
+        const funcionario = await db.get('SELECT * FROM funcionarios WHERE id = ?', [id]);
+        const especialidades = await db.all('SELECT * FROM especialidades');
+        const vinculos = await db.all('SELECT especialidade_id FROM funcionario_especialidades WHERE funcionario_id = ?', [id]);
+      
+        await db.close();
+      
+        const especialidadeIds = vinculos.map(e => e.especialidade_id);
+      
+        res.render('editarFuncionario', {
+          funcionario,
+          especialidades,
+          especialidadeIds
+        });
+      });
+      
+
+      app.post('/editar-funcionario/:id', requireLogin, async (req, res) => {
+        const id = req.params.id;
+        const { nome, especialidade_ids } = req.body;
+      
+        const db = await abrirBanco();
+      
+        await db.run('UPDATE funcionarios SET nome = ? WHERE id = ?', [nome, id]);
+        await db.run('DELETE FROM funcionario_especialidades WHERE funcionario_id = ?', [id]);
+      
+        const lista = Array.isArray(especialidade_ids) ? especialidade_ids : [especialidade_ids];
+        for (const espId of lista.filter(Boolean)) {
+          await db.run('INSERT INTO funcionario_especialidades (funcionario_id, especialidade_id) VALUES (?, ?)', [id, espId]);
+        }
+      
+        await db.close();
+        req.session.msg = 'Funcionário atualizado com sucesso!';
+        res.redirect('/funcionarios');
+      });
+      
 
 app.get('/', (req, res) => res.redirect('/agendamentos'));
 
