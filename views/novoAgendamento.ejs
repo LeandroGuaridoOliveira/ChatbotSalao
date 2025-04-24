@@ -1,34 +1,179 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>Novo agendamento</title>
-<style>
-body { font-family: Arial; background: #ede7f6;}
-.central { margin: 60px auto; max-width: 410px; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #ccc; padding: 32px;}
-input,select { width:100%;padding:8px;margin-bottom:11px;border-radius:4px;border:1px solid #ccc;}
-button { background: #7e57c2; color: #fff; border:none; width:100%; padding:8px 0; font-weight:bold; border-radius:4px;}
-a { color: #7e57c2;}
-h3 { color: #7e57c2;}
-</style>
+  <meta charset="UTF-8">
+  <title>Novo Agendamento</title>
+  <style>
+    body {
+      font-family: Arial;
+      background: #ede7f6;
+    }
+    .central {
+      margin: 60px auto;
+      max-width: 460px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px #ccc;
+      padding: 32px;
+    }
+    label {
+      font-weight: bold;
+      display: block;
+      margin-bottom: 6px;
+      margin-top: 14px;
+      color: #555;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 12px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+    .msg-erro {
+      background: #fbe9e7;
+      color: #d84315;
+      border: 1px solid #ffab91;
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+    .procedimentos {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+      margin-bottom: 20px;
+    }
+    .pill-button {
+      border: 1px solid #7e57c2;
+      padding: 8px 12px;
+      border-radius: 20px;
+      background: #fff;
+      color: #7e57c2;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease-in-out;
+      user-select: none;
+    }
+    .pill-button.selected {
+      background: #7e57c2;
+      color: white;
+    }
+    button {
+      background: #7e57c2;
+      color: #fff;
+      border: none;
+      width: 100%;
+      padding: 10px 0;
+      font-weight: bold;
+      border-radius: 4px;
+      margin-top: 12px;
+    }
+    a {
+      color: #7e57c2;
+      display: inline-block;
+      margin-top: 12px;
+      text-align: center;
+      width: 100%;
+      font-size: 14px;
+    }
+  </style>
 </head>
 <body>
-<div class="central">
-<h3>Novo Agendamento</h3>
-<form method="post">
-    <input name="nome" placeholder="Nome completo do cliente" required>
-    <input name="cpf" placeholder="CPF do cliente" required>
-    <input name="dia" type="date" required>
-    <input name="horario" placeholder="Ex: 14:00" required>
-    <select name="procedimento_id" required>
-    <option value="">Escolha o procedimento...</option>
-    <% procedimentos.forEach(p=>{ %>
-        <option value="<%= p.id %>"><%= p.nome %> (R$ <%= p.valor %>)</option>
-    <% }) %>
-    </select>
-    <button type="submit">Gravar</button>
-</form>
-<div style="font-size:14px;"><a href="/agendamentos">&larr; Voltar à lista</a></div>
-</div>
+  <div class="central">
+    <h3 style="color: #7e57c2;">Novo Agendamento</h3>
+
+    <% if (msg) { %>
+      <div class="msg-erro"><%= msg %></div>
+    <% } %>
+
+    <form method="post">
+      <label for="nome">Nome do cliente:</label>
+      <input name="nome" id="nome" placeholder="Nome completo" required>
+
+      <label for="cpf">CPF do cliente:</label>
+      <input name="cpf" id="cpf" placeholder="Apenas números" required>
+
+      <label for="funcionario_id">Funcionário:</label>
+      <select name="funcionario_id" id="funcionario_id" required>
+        <option value="">Selecione o funcionário</option>
+        <% funcionarios.forEach(f => { %>
+          <option value="<%= f.id %>"><%= f.nome %> - <%= f.especialidade %></option>
+        <% }) %>
+      </select>
+
+      <label for="dia">Data:</label>
+      <input type="date" name="dia" id="dia" required>
+
+      <label for="horario">Horário:</label>
+      <select name="horario" id="horario" required>
+        <option value="">Escolha a data e o funcionário</option>
+      </select>
+
+      <label>Procedimentos:</label>
+      <div class="procedimentos">
+        <% procedimentos.forEach(p => { %>
+          <div class="pill-button" data-id="<%= p.id %>">
+            <input type="checkbox" name="procedimento_id" value="<%= p.id %>" style="display: none;">
+            <span><%= p.nome %> (R$ <%= p.valor %>)</span>
+          </div>
+        <% }) %>
+      </div>
+
+      <button type="submit">Gravar</button>
+    </form>
+
+    <a href="/agendamentos">&larr; Voltar à lista</a>
+  </div>
+
+  <script>
+    // Horários disponíveis com base no funcionário e na data
+    document.getElementById('funcionario_id').addEventListener('change', atualizarHorarios);
+    document.getElementById('dia').addEventListener('change', atualizarHorarios);
+
+    async function atualizarHorarios() {
+      const funcionarioId = document.getElementById('funcionario_id').value;
+      const dia = document.getElementById('dia').value;
+
+      if (!funcionarioId || !dia) return;
+
+      const response = await fetch(`/horarios-ocupados?funcionario_id=${funcionarioId}&dia=${dia}`);
+      const ocupados = await response.json();
+
+      const selectHorario = document.getElementById('horario');
+      selectHorario.innerHTML = '';
+
+      const horariosDisponiveis = gerarHorariosDisponiveis();
+
+      horariosDisponiveis.forEach(horario => {
+        if (!ocupados.includes(horario)) {
+          const option = document.createElement('option');
+          option.value = horario;
+          option.textContent = horario;
+          selectHorario.appendChild(option);
+        }
+      });
+    }
+
+    function gerarHorariosDisponiveis() {
+      const horarios = [];
+      for (let h = 8; h < 18; h++) {
+        horarios.push(`${h.toString().padStart(2, '0')}:00`);
+        horarios.push(`${h.toString().padStart(2, '0')}:30`);
+      }
+      return horarios;
+    }
+
+    // Comportamento dos botões de procedimentos
+    document.querySelectorAll('.pill-button').forEach(pill => {
+      pill.addEventListener('click', function () {
+        const input = pill.querySelector('input');
+        input.checked = !input.checked;
+        pill.classList.toggle('selected', input.checked);
+      });
+    });
+  </script>
 </body>
 </html>

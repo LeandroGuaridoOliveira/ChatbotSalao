@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Funcionários</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; background-color: #f9f9f9; }
+    h1, h2 { color: #7e57c2; }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      background-color: #fff;
+      box-shadow: 0 2px 5px #ccc;
+      margin-bottom: 40px;
+    }
+
+    th, td {
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: left;
+    }
+
+    tr:nth-child(even) { background-color: #f6f6f6; }
+    tr:hover { background-color: #f0ebfa; }
+
+    form {
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px #ccc;
+    }
+
+    input, button {
+      padding: 8px;
+      margin-bottom: 10px;
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      background-color: #7e57c2;
+      color: white;
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #673ab7;
+    }
+
+    a {
+      color: #7e57c2;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .mensagem {
+      padding: 10px;
+      background-color: #e0f7fa;
+      border: 1px solid #81d4fa;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+
+    .btn-excluir {
+      background-color: #e53935;
+      margin-top: 0;
+    }
+
+    .btn-excluir:hover {
+      background-color: #c62828;
+    }
+
+    .pill-button {
+      display: inline-block;
+      padding: 8px 14px;
+      border-radius: 20px;
+      border: 1px solid #7e57c2;
+      background: #fff;
+      color: #7e57c2;
+      cursor: pointer;
+      margin: 4px 6px 10px 0;
+      transition: all 0.2s ease-in-out;
+      user-select: none;
+    }
+
+    .pill-button.selected {
+      background: #7e57c2;
+      color: white;
+    }
+
+    .especialidades-box {
+      margin: 12px 0 20px;
+    }
+
+    .pill-button input {
+      display: none;
+    }
+
+  </style>
+</head>
+<body>
+  <h1>Funcionários</h1>
+
+  <% if (msg) { %>
+    <div class="mensagem"><%= msg %></div>
+  <% } %>
+
+  <table>
+    <tr>
+      <th>Nome</th>
+      <th>Ações</th>
+    </tr>
+    <% funcionarios.forEach(f => { %>
+      <tr>
+        <td><%= f.nome %></td>
+        <td>
+          <form method="post" action="/funcionarios/<%= f.id %>/excluir" onsubmit="return confirm('Tem certeza que deseja excluir este funcionário?');">
+            <button type="submit" class="btn-excluir">Excluir</button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+  </table>
+
+  <h2>Adicionar Novo Funcionário</h2>
+
+  <form method="post" action="/funcionarios">
+    <input type="text" name="nome" placeholder="Nome do funcionário" required>
+
+    <label>Especialidades:</label>
+    <div class="especialidades-box">
+      <% especialidades.forEach(e => { %>
+        <label class="pill-button">
+          <input type="checkbox" name="especialidade_ids" value="<%= e.id %>">
+          <%= e.nome %>
+        </label>
+      <% }) %>
+    </div>
+
+    <button type="submit">Cadastrar</button>
+  </form>
+
+  <p style="margin-top:30px;">
+    <a href="/agendamentos">← Voltar aos Agendamentos</a> |
+    <a href="/logout">Logout</a>
+  </p>
+
+  <script>
+    document.querySelectorAll('.pill-button').forEach(pill => {
+      pill.addEventListener('click', function () {
+        const checkbox = pill.querySelector('input');
+        checkbox.checked = !checkbox.checked;
+        pill.classList.toggle('selected', checkbox.checked);
+      });
+    });
+  </script>
+</body>
+</html>

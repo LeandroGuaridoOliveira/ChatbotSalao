@@ -3,7 +3,6 @@ const { Client } = require('whatsapp-web.js');
 const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
 
-// Função de abrir banco com retry automático
 async function abrirBancoComRetry(tentativas = 10, delayMs = 200) {
     for (let i = 0; i < tentativas; i++) {
         try {
@@ -23,9 +22,9 @@ async function abrirBancoComRetry(tentativas = 10, delayMs = 200) {
     throw new Error('Não foi possível abrir o banco de dados (SQLITE_BUSY).');
 }
 
-// Criação das tabelas
 async function inicializarTabelas() {
     const db = await abrirBancoComRetry();
+
     await db.run(`
         CREATE TABLE IF NOT EXISTS clientes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,6 +32,7 @@ async function inicializarTabelas() {
             cpf TEXT UNIQUE
         );
     `);
+
     await db.run(`
         CREATE TABLE IF NOT EXISTS procedimentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,17 +40,37 @@ async function inicializarTabelas() {
             valor REAL
         );
     `);
+
+    await db.run(`
+        CREATE TABLE IF NOT EXISTS funcionarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            especialidade TEXT,
+            ativo INTEGER DEFAULT 1
+        );
+    `);
+
     await db.run(`
         CREATE TABLE IF NOT EXISTS agendamentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             cliente_id INTEGER,
-            procedimento_id INTEGER,
+            funcionario_id INTEGER,
             dia TEXT,
             horario TEXT,
             FOREIGN KEY (cliente_id) REFERENCES clientes(id),
+            FOREIGN KEY (funcionario_id) REFERENCES funcionarios(id)
+        );
+    `);
+
+    await db.run(`
+        CREATE TABLE IF NOT EXISTS agendamento_procedimentos (
+            agendamento_id INTEGER,
+            procedimento_id INTEGER,
+            FOREIGN KEY (agendamento_id) REFERENCES agendamentos(id),
             FOREIGN KEY (procedimento_id) REFERENCES procedimentos(id)
         );
     `);
+
     await db.close();
 }
 
@@ -110,16 +130,23 @@ async function listarAgendamentosCompletos() {
     const db = await abrirBancoComRetry();
     const agendamentos = await db.all(`
         SELECT 
-            a.id, c.nome, c.cpf, a.dia, a.horario, 
-            p.nome AS procedimento, p.valor
+            a.id AS agendamento_id,
+            c.nome AS cliente_nome,
+            c.cpf AS cliente_cpf,
+            a.dia,
+            a.horario,
+            IFNULL(GROUP_CONCAT(p.nome, ', '), '') AS nomes_procedimentos,
+            IFNULL(SUM(p.valor), 0) AS valor_total
         FROM agendamentos a
-        LEFT JOIN clientes c ON c.id = a.cliente_id
-        LEFT JOIN procedimentos p ON p.id = a.procedimento_id
-        ORDER BY a.id DESC
+        JOIN clientes c ON a.cliente_id = c.id
+        LEFT JOIN agendamento_procedimentos ap ON ap.agendamento_id = a.id
+        LEFT JOIN procedimentos p ON p.id = ap.procedimento_id
+        GROUP BY a.id
     `);
     await db.close();
     return agendamentos;
 }
+
 
 (async () => {
     await inicializarTabelas();
@@ -167,97 +194,197 @@ client.on('message', async msg => {
     const chat = await msg.getChat();
     const to = msg.from;
 
-    // Listar agendamentos (admin)
     if (msg.body.toLowerCase() === 'listar agendamentos') {
         const ags = await listarAgendamentosCompletos();
         let texto = "📋 *Agendamentos salvos:*\n";
         if (ags.length === 0) texto += "_Nenhum agendamento cadastrado._";
         ags.forEach(ag => {
-            texto += `\nID: ${ag.id}\nNome: ${ag.nome} | CPF: ${ag.cpf}\nDia: ${ag.dia} às ${ag.horario}\nProcedimento: ${ag.procedimento} (R$ ${ag.valor})\n`;
+            texto += `\n📌 ID: ${ag.agendamento_id}\n👤 Nome: ${ag.cliente_nome}\n🆔 CPF: ${ag.cliente_cpf}\n📅 Dia: ${ag.dia} às ${ag.horario}\n💇 Procedimentos: ${ag.nomes_procedimentos}\n💰 Total: R$ ${ag.valor_total.toFixed(2)}\n`;
+
         });
         await msg.reply(texto);
         return;
     }
 
-    // Nova sessão
-    if (!sessions.has(to) || msg.body.toLowerCase() === 'agendar' || msg.body === '0') {
+    if (!sessions.has(to)) {
         sessions.set(to, { etapa: 1, dados: {}, timer: null });
-        await sendMessageWithTyping(
-            chat, client, to,
-            "Olá! Para agendar, por favor informe seu nome completo.\nExemplo: *Maria da Silva*"
-        );
+        await sendMessageWithTyping(chat, client, to, "Olá! Para agendar, por favor informe seu nome completo.\nExemplo: *Maria da Silva*");
         return;
-    }
+      }
+      
+      if (msg.body.toLowerCase() === 'agendar') {
+        sessions.set(to, { etapa: 1, dados: {}, timer: null });
+        await sendMessageWithTyping(chat, client, to, "Vamos começar um novo agendamento!\nInforme seu nome completo.");
+        return;
+      }
+      
 
     let sessao = sessions.get(to);
     resetarTimerInatividade(chat, client, to);
 
-    switch(sessao.etapa) {
-        case 1:
-            sessao.dados.nome = msg.body.trim();
-            sessao.etapa = 2;
-            await sendMessageWithTyping(
-                chat, client, to,
-                "Agora, informe seu CPF.\nExemplo: *123.456.789-00*"
-            );
-            break;
-        case 2:
-            sessao.dados.cpf = msg.body.trim();
-            sessao.etapa = 3;
-            await sendMessageWithTyping(
-                chat, client, to,
-                "Qual é a *data* do atendimento do atendimento?\nExemplo: *25/04/2025*"
-            );
-            break;
-        case 3:
-            sessao.dados.dia = msg.body.trim();
-            sessao.etapa = 4;
-            await sendMessageWithTyping(
-                chat, client, to,
-                "Qual o horário desejado?\nExemplo: *14:00*"
-            );
-            break;
-        case 4:
-            sessao.dados.horario = msg.body.trim();
-            sessao.etapa = 5;
-            sessao.procedimentosMenu = await listarProcedimentos();
-            let menu = "Escolha o procedimento digitando o número correspondente:\n";
-            sessao.procedimentosMenu.forEach((p, idx) => {
-                menu += `${idx+1} - ${p.nome} (R$ ${p.valor.toFixed(2)})\n`;
-            });
-            menu += "\nExemplo: *2*";
-            await sendMessageWithTyping(chat, client, to, menu);
-            break;
-        case 5:
-            const idx = parseInt(msg.body.trim(), 10) - 1;
-            const lista = sessao.procedimentosMenu;
-            if (!lista || isNaN(idx) || idx < 0 || idx >= lista.length) {
-                await sendMessageWithTyping(
-                  chat, client, to,
-                  "Por favor, digite o *número* do procedimento conforme o menu acima.\nExemplo: *1*"
-                );
-                return;
-            }
-            const procedimentoEscolhido = lista[idx];
-            const cliente = await inserirOuObterCliente(sessao.dados.nome, sessao.dados.cpf);
-            await inserirAgendamento(cliente.id, procedimentoEscolhido.id, sessao.dados.dia, sessao.dados.horario);
-            await sendMessageWithTyping(
-                chat, client, to,
-                `✅ *Seu agendamento está confirmado!*\n
-👤 *Nome:* ${cliente.nome}
-🆔 *CPF:* ${cliente.cpf}
-📅 *Dia:* ${sessao.dados.dia}
-⏰ *Horário:* ${sessao.dados.horario}
-💇‍♀️ *Procedimento:* ${procedimentoEscolhido.nome}
-💵 *Valor:* R$ ${procedimentoEscolhido.valor.toFixed(2)}
-
-*Obrigado por agendar conosco!*`
-            );
-            sessions.delete(to);
-            break;
-        default:
-            await sendMessageWithTyping(chat, client, to, "Desculpe, não entendi. Digite *agendar* para iniciar um novo agendamento.");
-            sessions.delete(to);
-            break;
+                switch(sessao.etapa) {
+                    case 1:
+                        sessao.dados.nome = msg.body.trim();
+                        sessao.etapa = 2;
+                        await sendMessageWithTyping(
+                            chat, client, to,
+                            "Agora, informe seu CPF.\nExemplo: *123.456.789-00*"
+                        );
+                        break;
+                        function formatarCPF(cpf) {
+                            return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+                        }
+                        
+                        // ... dentro do client.on('message', async msg => {...})
+            
+                    case 2:
+                        let cpfLimpo = msg.body.replace(/\D/g, '');
+                        if (cpfLimpo.length !== 11) {
+                            await sendMessageWithTyping(
+                                chat, client, to,
+                                "❌ CPF inválido! Certifique-se de digitar 11 números. Tente novamente.\nExemplo: *12345678900* ou *123.456.789-00*"
+                            );
+                            return;
+                        }
+                        sessao.dados.cpf = cpfLimpo; // salva limpo
+                        sessao.etapa = 3;
+                        await sendMessageWithTyping(
+                            chat, client, to,
+                            "Qual é a *data* do atendimento?\nExemplo: *25/04/2025*"
+                        );
+                        break;
+                        case 3:
+                            const dataInput = msg.body.trim();
+                            const regexData = /^\d{2}\/\d{2}\/\d{4}$/;
+                        
+                            if (!regexData.test(dataInput)) {
+                                await sendMessageWithTyping(chat, client, to, "❌ Data inválida! Use o formato *DD/MM/AAAA*.\nExemplo: *25/04/2025*");
+                                return;
+                            }
+                        
+                            const [dia, mes, ano] = dataInput.split('/').map(Number);
+                            const dataAgendamento = new Date(ano, mes - 1, dia);
+                            const hoje = new Date();
+                            hoje.setHours(0, 0, 0, 0); // Zera horário
+                        
+                            if (isNaN(dataAgendamento.getTime()) || dataAgendamento < hoje) {
+                                await sendMessageWithTyping(chat, client, to, "❌ A data precisa ser válida e a partir de hoje.");
+                                return;
+                            }
+                        
+                            sessao.dados.dia = dataInput;
+                            sessao.etapa = 4;
+                            await sendMessageWithTyping(
+                                chat, client, to,
+                                "Qual o horário desejado?\nEstamos abertos das *08:00* às *18:00*.\nExemplo: *14:00*"
+                            );
+                            break;
+                        
+                            case 4:
+                                const horario = msg.body.trim();
+                                const regexHora = /^([01]\d|2[0-3]):([0-5]\d)$/;
+                            
+                                if (!regexHora.test(horario)) {
+                                    await sendMessageWithTyping(chat, client, to, "❌ Horário inválido! Use o formato *HH:MM* (24h).\nExemplo: *14:30*");
+                                    return;
+                                }
+                            
+                                const [hh, mm] = horario.split(':').map(Number);
+                                const horaNum = hh + mm / 60;
+                            
+                                if (horaNum < 8 || horaNum > 18) {
+                                    await sendMessageWithTyping(chat, client, to, "⏰ Horário fora do funcionamento! Escolha entre *08:00* e *18:00*.");
+                                    return;
+                                }
+                            
+                                sessao.dados.horario = horario;
+                                sessao.etapa = 5;
+                                sessao.procedimentosMenu = await listarProcedimentos();
+                            
+                                let menu = "Escolha o procedimento digitando o número correspondente:\n";
+                                sessao.procedimentosMenu.forEach((p, idx) => {
+                                    menu += `${idx + 1} - ${p.nome} (R$ ${p.valor.toFixed(2)})\n`;
+                                });
+                                menu += "\nDigite o número do procedimento ou *0* para finalizar.";
+                                await sendMessageWithTyping(chat, client, to, menu);
+                                break;
+                            
+                case 5:
+                    const input = msg.body.trim();
+                    const lista = sessao.procedimentosMenu;
+                    const idx = parseInt(input, 10) - 1;
+        
+                    // Caso digite 0 — finalizar escolha de procedimentos
+                    if (input === '0') {
+                        if (!sessao.dados.procedimentos || sessao.dados.procedimentos.length === 0) {
+                            await sendMessageWithTyping(chat, client, to, "❗ Você precisa escolher pelo menos 1 procedimento antes de finalizar.");
+                            return;
+                        }
+        
+                        const cliente = await inserirOuObterCliente(sessao.dados.nome, sessao.dados.cpf);
+                        const db = await abrirBancoComRetry();
+        
+                        await db.run(`INSERT INTO agendamentos (cliente_id, dia, horario) VALUES (?, ?, ?)`, [cliente.id, sessao.dados.dia, sessao.dados.horario]);
+                        const agendamento = await db.get(`SELECT last_insert_rowid() as id`);
+        
+                        for (const proc of sessao.dados.procedimentos) {
+                            await db.run(`INSERT INTO agendamento_procedimentos (agendamento_id, procedimento_id) VALUES (?, ?)`, [agendamento.id, proc.id]);
+                        }
+        
+                        await db.close();
+        
+                        let total = 0;
+                        let listaTexto = sessao.dados.procedimentos.map(p => {
+                            total += p.valor;
+                            return `• ${p.nome} (R$ ${p.valor.toFixed(2)})`;
+                        }).join('\n');
+        
+                        const tempoEstimado = sessao.dados.procedimentos.length * 30;
+        
+                        await sendMessageWithTyping(chat, client, to,
+                        `✅ *Seu agendamento está confirmado!*\n
+        👤 *Nome:* ${cliente.nome}
+        🆔 *CPF:* ${formatarCPF(cliente.cpf)}
+        📅 *Dia:* ${sessao.dados.dia}
+        ⏰ *Horário:* ${sessao.dados.horario}
+        
+        💇‍♀️ *Procedimentos:*\n${listaTexto}
+        💰 *Total:* R$ ${total.toFixed(2)}
+        🕒 *Tempo estimado:* ${tempoEstimado} minutos
+        
+        *Obrigado por agendar conosco! Até breve!*`);
+        
+                        if (sessao.timer) clearTimeout(sessao.timer);
+                        sessions.delete(to);
+                        break;
+                    }
+        
+                    // Validação normal do procedimento
+                    if (!lista || isNaN(idx) || idx < 0 || idx >= lista.length) {
+                        await sendMessageWithTyping(
+                            chat, client, to,
+                            "❌ Por favor, digite o *número do procedimento* conforme o menu acima.\nExemplo: *1*"
+                        );
+                        return;
+                    }
+        
+                    const escolhido = lista[idx];
+                    if (!sessao.dados.procedimentos) sessao.dados.procedimentos = [];
+                    if (sessao.dados.procedimentos.some(p => p.id === escolhido.id)) {
+                        await sendMessageWithTyping(chat, client, to, "⚠️ Esse procedimento já foi adicionado. Escolha outro ou digite *0* para finalizar.");
+                        return;
+                    }
+        
+                    sessao.dados.procedimentos.push(escolhido);
+        
+                    let menuNovo = "✅ Procedimento adicionado!\n\nDeseja adicionar mais?\n";
+                    lista.forEach((p, i) => {
+                        menuNovo += `${i + 1} - ${p.nome} (R$ ${p.valor.toFixed(2)})\n`;
+                    });
+                    menuNovo += "\nDigite o número do procedimento ou *0* para continuar.";
+                    await sendMessageWithTyping(chat, client, to, menuNovo);
+                    break;
+    
+    
     }
 });
