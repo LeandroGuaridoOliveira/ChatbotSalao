@@ -89,7 +89,7 @@
       <div class="msg-erro"><%= msg %></div>
     <% } %>
 
-    <form method="post">
+    <form id="form-agendamento" method="POST" action="/novo-agendamento">
       <label for="nome">Nome do cliente:</label>
       <input name="nome" id="nome" placeholder="Nome completo" required>
 
@@ -128,52 +128,81 @@
     <a href="/agendamentos">&larr; Voltar à lista</a>
   </div>
 
-  <script>
-    // Horários disponíveis com base no funcionário e na data
-    document.getElementById('funcionario_id').addEventListener('change', atualizarHorarios);
-    document.getElementById('dia').addEventListener('change', atualizarHorarios);
 
-    async function atualizarHorarios() {
-      const funcionarioId = document.getElementById('funcionario_id').value;
-      const dia = document.getElementById('dia').value;
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+  document.querySelector('#form-agendamento').addEventListener('submit', function(e) {
+    e.preventDefault(); // impede o envio imediato
 
-      if (!funcionarioId || !dia) return;
-
-      const response = await fetch(`/horarios-ocupados?funcionario_id=${funcionarioId}&dia=${dia}`);
-      const ocupados = await response.json();
-
-      const selectHorario = document.getElementById('horario');
-      selectHorario.innerHTML = '';
-
-      const horariosDisponiveis = gerarHorariosDisponiveis();
-
-      horariosDisponiveis.forEach(horario => {
-        if (!ocupados.includes(horario)) {
-          const option = document.createElement('option');
-          option.value = horario;
-          option.textContent = horario;
-          selectHorario.appendChild(option);
-        }
-      });
-    }
-
-    function gerarHorariosDisponiveis() {
-      const horarios = [];
-      for (let h = 8; h < 18; h++) {
-        horarios.push(`${h.toString().padStart(2, '0')}:00`);
-        horarios.push(`${h.toString().padStart(2, '0')}:30`);
+    Swal.fire({
+      title: 'Confirmar agendamento?',
+      text: 'Deseja realmente salvar este agendamento?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sim, salvar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#7e57c2',
+      cancelButtonColor: '#aaa'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        this.submit(); // envia o formulário
       }
-      return horarios;
+    });
+  });
+</script>
+
+<script>
+  const funcionarioSelect = document.getElementById('funcionario_id');
+  const dataInput = document.getElementById('dia');
+  const selectHorario = document.getElementById('horario');
+
+  async function atualizarHorarios() {
+    const funcionarioId = funcionarioSelect.value;
+    const dia = dataInput.value;
+    const procedimentos = Array.from(document.querySelectorAll('input[name="procedimento_id"]:checked'))
+                               .map(input => input.value);
+
+    if (!funcionarioId || !dia || procedimentos.length === 0) {
+      selectHorario.innerHTML = '<option value="">Escolha funcionário, data e procedimentos</option>';
+      return;
     }
 
-    // Comportamento dos botões de procedimentos
-    document.querySelectorAll('.pill-button').forEach(pill => {
-      pill.addEventListener('click', function () {
-        const input = pill.querySelector('input');
-        input.checked = !input.checked;
-        pill.classList.toggle('selected', input.checked);
+    const queryParams = new URLSearchParams();
+    queryParams.append('funcionario_id', funcionarioId);
+    queryParams.append('dia', dia);
+    procedimentos.forEach(p => queryParams.append('procedimentos', p));
+
+    const response = await fetch(`/horarios-disponiveis?${queryParams.toString()}`);
+    const horarios = await response.json();
+
+    selectHorario.innerHTML = '';
+
+    if (horarios.length === 0) {
+      selectHorario.innerHTML = '<option value="">Sem horários disponíveis</option>';
+    } else {
+      horarios.forEach(h => {
+        const opt = document.createElement('option');
+        opt.value = h;
+        opt.textContent = h;
+        selectHorario.appendChild(opt);
       });
+    }
+  }
+
+  // Escutar mudanças
+  funcionarioSelect.addEventListener('change', atualizarHorarios);
+  dataInput.addEventListener('change', atualizarHorarios);
+
+  // Procedimentos: comportamento + atualizar horário
+  document.querySelectorAll('.pill-button').forEach(pill => {
+    pill.addEventListener('click', function () {
+      const input = pill.querySelector('input');
+      input.checked = !input.checked;
+      pill.classList.toggle('selected', input.checked);
+      atualizarHorarios(); // 🔁 atualiza os horários quando procedimento muda
     });
-  </script>
+  });
+</script>
+
 </body>
 </html>

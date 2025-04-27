@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Procedimentos</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 40px;
+      background-color: #f2f2f2;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+    .container {
+      background: #fff;
+      padding: 30px 40px;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 700px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #6f42c1;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      padding: 12px;
+      text-align: center;
+      border-bottom: 1px solid #eee;
+    }
+    th {
+      background-color: #6f42c1;
+      color: white;
+      font-size: 16px;
+    }
+    input[type="number"] {
+      width: 80px;
+      padding: 6px;
+      text-align: center;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .botoes {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 15px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    .btn-salvar {
+      background-color: #6f42c1;
+      color: white;
+    }
+    .btn-salvar:hover {
+      background-color: #5a34a1;
+    }
+    .btn-voltar {
+      background-color: #ccc;
+      color: #333;
+    }
+    .btn-voltar:hover {
+      background-color: #bbb;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>Editar Procedimentos</h1>
+
+    <form id="form-procedimentos" method="POST" action="/procedimentos">
+      <table>
+        <thead>
+          <tr>
+            <th>Procedimento</th>
+            <th>Duração (min)</th>
+            <th>Valor (R$)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% procedimentos.forEach(p => { %>
+            <tr>
+              <td><%= p.nome %></td>
+              <td><input type="number" name="duracao_<%= p.id %>" value="<%= p.duracao || '' %>" min="5" required></td>
+              <td><input type="number" name="valor_<%= p.id %>" value="<%= p.valor || '' %>" min="0" step="0.01" required></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+      <div class="botoes">
+        <button type="submit" class="btn-salvar">Salvar</button>
+        <a href="/agendamentos"><button type="button" class="btn-voltar">Voltar</button></a>
+      </div>
+    </form>
+
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <script>
+    const form = document.getElementById('form-procedimentos');
+  
+    form.addEventListener('submit', function(event) {
+      const duracoes = document.querySelectorAll('input[name^="duracao_"]');
+      const valores = document.querySelectorAll('input[name^="valor_"]');
+  
+      for (let i = 0; i < duracoes.length; i++) {
+        const duracao = parseInt(duracoes[i].value);
+        const valor = parseFloat(valores[i].value);
+  
+        if (isNaN(duracao) || duracao <= 0) {
+          event.preventDefault();
+          Swal.fire({
+            icon: 'error',
+            title: 'Erro!',
+            text: 'A duração deve ser um número positivo!',
+            confirmButtonColor: '#dc3545'
+          });
+          return;
+        }
+  
+        if (isNaN(valor) || valor < 0) {
+          event.preventDefault();
+          Swal.fire({
+            icon: 'error',
+            title: 'Erro!',
+            text: 'O valor deve ser zero ou positivo!',
+            confirmButtonColor: '#dc3545'
+          });
+          return;
+        }
+      }
+    });
+  </script>
+  
+  <% if (msg) { %>
+  <script>
+    Swal.fire({
+      icon: 'success',
+      title: 'Sucesso!',
+      text: '<%= msg %>',
+      confirmButtonColor: '#6f42c1'
+    });
+  </script>
+  <% } %>
+  
+  
+</body>
+</html>

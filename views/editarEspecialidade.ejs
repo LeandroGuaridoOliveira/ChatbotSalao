@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Editar Especialidade</title>
+  <style>
+    body {
+      background-color: #f2f2f2;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 600px;
+    }
+
+    h1 {
+      text-align: center;
+      color: #6f42c1;
+      margin-bottom: 30px;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    label {
+      font-weight: bold;
+      margin-bottom: 5px;
+      color: #333;
+    }
+
+    input[type="text"] {
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+
+    .botoes {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-top: 30px;
+    }
+
+    .btn {
+      padding: 12px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      text-decoration: none;
+      text-align: center;
+      transition: background-color 0.3s;
+    }
+
+    .btn-salvar {
+      background-color: #6f42c1;
+      color: white;
+    }
+
+    .btn-salvar:hover {
+      background-color: #5a34a1;
+    }
+
+    .btn-voltar {
+      background-color: #ccc;
+      color: #333;
+    }
+
+    .btn-voltar:hover {
+      background-color: #bbb;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>Editar Especialidade</h1>
+
+    <form method="POST" action="/editar-especialidade/<%= especialidade.id %>">
+      <div>
+        <label for="nome">Nome da Especialidade:</label>
+        <input type="text" name="nome" id="nome" value="<%= especialidade.nome %>" required>
+      </div>
+
+      <div class="botoes">
+        <button type="submit" class="btn btn-salvar">Salvar</button>
+        <a href="/especialidades" class="btn btn-voltar">Voltar à Lista</a>
+      </div>
+    </form>
+
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Escolher Funcionário</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      padding: 40px;
+    }
+
+    h1 {
+      color: #7e57c2;
+      margin-bottom: 20px;
+    }
+
+    form {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px #ccc;
+      max-width: 400px;
+    }
+
+    select, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 12px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      font-size: 15px;
+    }
+
+    button {
+      background-color: #7e57c2;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+    }
+
+    a {
+      display: inline-block;
+      margin-top: 20px;
+      color: #7e57c2;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Escolher Funcionário</h1>
+  <form method="POST" action="/escolher-funcionario-horario">
+    <label for="funcionario_id">Funcionário:</label>
+    <select name="funcionario_id" required>
+      <option value="">Selecione...</option>
+      <% funcionarios.forEach(f => { %>
+        <option value="<%= f.id %>"><%= f.nome %></option>
+      <% }) %>
+    </select>
+    <button type="submit">Gerenciar Horários</button>
+  </form>
+
+  <a href="/funcionarios">&larr; Voltar</a>
+</body>
+</html>

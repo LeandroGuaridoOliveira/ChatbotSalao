@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Horários de <%= funcionario.nome %></title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      padding: 40px;
+    }
+
+    h1 {
+      color: #7e57c2;
+      margin-bottom: 20px;
+    }
+
+    form {
+      background: #fff;
+      padding: 20px;
+      margin-bottom: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px #ccc;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    select, input[type="time"] {
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      background-color: #7e57c2;
+      color: white;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      box-shadow: 0 2px 6px #ccc;
+    }
+
+    th, td {
+      padding: 12px;
+      border: 1px solid #ddd;
+      text-align: left;
+    }
+
+    th {
+      background-color: #ede7f6;
+      color: #5e35b1;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+
+    .btn-remover {
+      background-color: #e53935;
+      color: white;
+      padding: 6px 12px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    a {
+      display: inline-block;
+      margin-top: 20px;
+      text-decoration: none;
+      color: #7e57c2;
+    }
+  </style>
+</head>
+<body>
+  <h1>Horários de <%= funcionario.nome %></h1>
+
+  <form method="POST" action="/horarios-funcionario/<%= funcionario.id %>/adicionar">
+    <div>
+      <label for="dia_semana">Dia da semana:</label><br>
+      <select name="dia_semana" required>
+        <option value="">Selecione...</option>
+        <option value="Segunda">Segunda</option>
+        <option value="Terça">Terça</option>
+        <option value="Quarta">Quarta</option>
+        <option value="Quinta">Quinta</option>
+        <option value="Sexta">Sexta</option>
+        <option value="Sábado">Sábado</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="horario">Horário:</label><br>
+      <input type="time" name="horario" required>
+    </div>
+
+    <div>
+      <button type="submit">Adicionar Horário</button>
+    </div>
+  </form>
+
+  <% if (horarios.length === 0) { %>
+    <p>Nenhum horário cadastrado ainda.</p>
+  <% } else { %>
+    <table>
+      <thead>
+        <tr>
+          <th>Dia</th>
+          <th>Horário</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% horarios.forEach(h => { %>
+          <tr>
+            <td><%= h.dia_semana %></td>
+            <td><%= h.horario %></td>
+            <td>
+              <form method="POST" action="/horarios-funcionario/<%= funcionario.id %>/remover/<%= h.id %>" onsubmit="return confirm('Remover este horário?');">
+                <button type="submit" class="btn-remover">Remover</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+
+  <a href="/funcionarios">&larr; Voltar para funcionários</a>
+</body>
+</html>

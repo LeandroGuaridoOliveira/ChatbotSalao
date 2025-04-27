@@ -9,37 +9,10 @@
       margin: 40px;
       background-color: #f9f9f9;
     }
-  
+
     h1 {
       color: #7e57c2;
     }
-  
-    button {
-      padding: 4px 12px;
-      margin-top: 4px;
-      margin-bottom: 4px;
-      border-radius: 4px;
-      border: none;
-      font-size: 13px;
-      cursor: pointer;
-    }
-  
-    .btn-excluir {
-      background-color: #e53935;
-      color: white;
-    }
-  
-    .btn-excluir:hover {
-      background-color: #c62828;
-    }
-  
-    .btn-editar {
-  background-color: #7e57c2;
-  color: white;
-}
-.btn-editar:hover {
-  background-color: #5e35b1;
-}
 
     .form-filtro {
       margin-bottom: 24px;
@@ -52,12 +25,12 @@
       align-items: center;
       gap: 10px;
     }
-  
+
     .form-filtro label {
       font-weight: bold;
       margin-right: 6px;
     }
-  
+
     .form-filtro select,
     .form-filtro input {
       padding: 6px 10px;
@@ -65,102 +38,133 @@
       border: 1px solid #ccc;
       min-width: 150px;
     }
-  
-    .form-filtro button {
-    background-color: #7e57c2;
-    color: #fff;
-    border: none;
-    border-radius: 4px;
-    padding: 8px 16px;
-    font-weight: bold;
-    cursor: pointer;
-  }
 
-  
+    .form-filtro button {
+      background-color: #7e57c2;
+      color: white;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
     .form-filtro a {
       text-decoration: none;
       color: #7e57c2;
       font-size: 14px;
       margin-left: 10px;
     }
-  
+
     table {
       border-collapse: collapse;
       width: 100%;
       background: #fff;
       box-shadow: 0 2px 5px #ccc;
     }
-  
+
     th, td {
       border: 1px solid #ddd;
       padding: 12px 10px;
       text-align: left;
     }
-  
-    tr:nth-child(even) {
-      background-color: #f6f6f6;
-    }
-  
-    tr:hover {
-      background-color: #f0ebfa;
-    }
-  
+
+    tr:nth-child(even) { background-color: #f6f6f6; }
+    tr:hover { background-color: #f0ebfa; }
+
     th {
       background-color: #ede7f6;
       color: #5e35b1;
     }
-  
-    button[type="submit"] {
-      background-color: #e53935;
-      color: white;
-      padding: 6px 12px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-  
-    button[type="submit"]:hover {
-      background-color: #c62828;
-    }
-  
+
     .links {
       margin-top: 30px;
       font-size: 15px;
     }
-  
+
     .links a {
       color: #7e57c2;
       text-decoration: none;
       margin-right: 16px;
     }
-  
+
     .links a:hover {
       text-decoration: underline;
     }
 
-    button.btn-editar[type="submit"] {
-  background-color: #7e57c2 !important;
-  color: white !important;
+    /* Novo estilo de botões */
+    .grupo-botoes {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: nowrap;
+      width: 100%;
+    }
+
+    .grupo-botoes form {
+      flex: 1;
+      margin: 0;
+    }
+
+    .botao-largo {
+      width: 100%;
+      padding: 10px 0;
+      font-size: 13px;
+      border-radius: 4px;
+      border: none;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .botao-roxo {
+      background-color: #7e57c2;
+      color: white;
+    }
+    .botao-roxo:hover {
+      background-color: #5e35b1;
+    }
+
+    .botao-vermelho {
+      background-color: #e53935;
+      color: white;
+    }
+    .botao-vermelho:hover {
+      background-color: #c62828;
+    }
+
+    .navegacao {
+  margin-bottom: 10px;
+  text-align: center;
 }
-button.btn-editar[type="submit"]:hover {
-  background-color: #5e35b1 !important;
+.navegacao a {
+  margin: 0 10px;
+  text-decoration: none;
+  color: #6f42c1;
+  font-weight: bold;
+  transition: color 0.3s;
 }
-.form-filtro button[type="submit"] {
-  background-color: #7e57c2 !important;
-  color: white !important;
+.navegacao a:hover {
+  color: #5a34a1;
 }
 
-.form-filtro button[type="submit"]:hover {
-  background-color: #5e35b1 !important;
-}
 
 
   </style>
-  
 </head>
 <body>
+
+  <div class="navegacao">
+    <a href="/novo-agendamento">Novo Agendamento</a> |
+    <a href="/funcionarios">Funcionários</a> |
+    <a href="/procedimentos">Procedimentos</a> |
+    <a href="/especialidades">Especialidades</a> |
+    <a href="/relatorios">Relatórios</a> |
+    <a href="/logout">Sair</a>
+  </div>
+
   <h1>Agendamentos</h1>
-  
+
   <% if (msg) { %>
     <div id="alert-box" class="bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded-xl mb-4 shadow flex items-start justify-between">
       <div class="flex items-center gap-2">
@@ -172,8 +176,7 @@ button.btn-editar[type="submit"]:hover {
       </button>
     </div>
   <% } %>
-  
-  <!-- FORMULÁRIO DE FILTRO -->
+
   <form method="get" action="/agendamentos" class="form-filtro">
     <label for="filtro">Filtrar por:</label>
     <select name="filtro" id="filtro" onchange="mostrarCampoFiltro(this.value)">
@@ -216,7 +219,6 @@ button.btn-editar[type="submit"]:hover {
     <% } %>
   </form>
 
-  <!-- TABELA DE AGENDAMENTOS -->
   <table>
     <tr>
       <th>Nome</th>
@@ -242,25 +244,21 @@ button.btn-editar[type="submit"]:hover {
           <td><%= a.nomes_procedimentos %></td>
           <td><%= a.funcionario_nome || "Não atribuído" %></td>
           <td>R$ <%= (a.valor_total || 0).toFixed(2) %></td>
-          <td>
-            <form method="get" action="/editar-agendamento/<%= a.agendamento_id %>" style="display:inline-block; margin-right: 4px;">
-              <button type="submit" class="btn-editar">Editar</button>
-            </form>
-            <form method="post" action="/apagar-agendamento/<%= a.agendamento_id %>" style="display:inline-block;" onsubmit="return confirm('Excluir este agendamento?');">
-              <button type="submit" class="btn-excluir">Excluir</button>
-            </form>
+          <td style="padding: 6px 8px;">
+            <div class="grupo-botoes largura-total">
+              <form method="get" action="/editar-agendamento/<%= a.agendamento_id %>">
+                <button type="submit" class="botao-roxo botao-largo">Editar</button>
+              </form>
+              <form method="post" action="/apagar-agendamento/<%= a.agendamento_id %>" class="form-excluir-agendamento">
+                <button type="submit" class="botao-vermelho botao-largo">Excluir</button>
+              </form>
+            </div>
           </td>
         </tr>
       <% }) %>
-      
     <% } %>
   </table>
-
-  <div class="links">
-    <a href="/novo-agendamento">Novo Agendamento</a> |
-    <a href="/funcionarios">Funcionários</a> |
-    <a href="/logout">Sair</a>
-  </div>
+  
 
   <script>
     function mostrarCampoFiltro(tipo) {
@@ -273,6 +271,28 @@ button.btn-editar[type="submit"]:hover {
     window.onload = function() {
       mostrarCampoFiltro(document.getElementById('filtro').value);
     };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script>
+    document.querySelectorAll('.form-excluir-agendamento').forEach(form => {
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        Swal.fire({
+          title: 'Excluir agendamento?',
+          text: 'Essa ação não pode ser desfeita.',
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Sim, excluir',
+          cancelButtonText: 'Cancelar',
+          confirmButtonColor: '#d84315',
+          cancelButtonColor: '#aaa'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            this.submit();
+          }
+        });
+      });
+    });
   </script>
 </body>
 </html>

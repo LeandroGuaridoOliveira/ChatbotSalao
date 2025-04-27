@@ -4,64 +4,141 @@
   <meta charset="UTF-8">
   <title>Editar Funcionário</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 40px; background-color: #f9f9f9; }
-    h1 { color: #7e57c2; }
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f8;
+      margin: 40px;
+    }
+
+    .container {
+      max-width: 500px;
+      margin: auto;
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px #ccc;
+    }
+
+    h2 {
+      color: #7e57c2;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #444;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      margin-bottom: 20px;
+      font-size: 15px;
+    }
+
+    .especialidades-box {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
     .pill-button {
-      display: inline-block;
+      border: 1px solid #7e57c2;
       padding: 8px 14px;
       border-radius: 20px;
-      border: 1px solid #7e57c2;
       background: #fff;
       color: #7e57c2;
+      font-size: 14px;
       cursor: pointer;
-      margin: 4px 6px 10px 0;
-      transition: all 0.2s ease-in-out;
+      transition: 0.2s;
       user-select: none;
     }
+
+    .pill-button.selected {
+      background: #7e57c2;
+      color: white;
+    }
+
     .pill-button input {
       display: none;
     }
-    .pill-button.checked {
-      background-color: #7e57c2;
-      color: white;
-    }
-    button {
-      margin-top: 16px;
-      background-color: #7e57c2;
-      color: white;
-      padding: 8px 16px;
-      border-radius: 6px;
-      border: none;
-      cursor: pointer;
-    }
+    .botoes-coluna {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.botoes-coluna button,
+.botoes-coluna a {
+  width: 100%;
+  padding: 10px 0;
+  text-align: center;
+  font-weight: bold;
+  font-size: 14px;
+  border-radius: 6px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btn-salvar {
+  background-color: #43a047;
+  color: white;
+  border: none;
+}
+
+.btn-salvar:hover {
+  background-color: #2e7d32;
+}
+
+.btn-voltar {
+  background-color: #ccc;
+  color: #333;
+}
+
+.btn-voltar:hover {
+  background-color: #aaa;
+}
+
   </style>
 </head>
 <body>
-  <h1>Editar Funcionário</h1>
+  <div class="container">
+    <h2>Editar Funcionário</h2>
 
-  <form method="post" action="/editar-funcionario/<%= funcionario.id %>">
-    <input type="text" name="nome" value="<%= funcionario.nome %>" required>
+    <form method="POST" action="/editar-funcionario/<%= funcionario.id %>">
+      <label for="nome">Nome do Funcionário:</label>
+      <input type="text" name="nome" id="nome" value="<%= funcionario.nome %>" required>
 
-    <label style="display: block; margin-top: 12px; font-weight: bold;">Especialidades:</label>
-    <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px;">
-      <% especialidades.forEach(e => { %>
-        <label class="pill-button <%= especialidadeIds.includes(e.id) ? 'checked' : '' %>">
-          <input type="checkbox" name="especialidade_ids" value="<%= e.id %>" <%= especialidadeIds.includes(e.id) ? 'checked' : '' %>>
-          <%= e.nome %>
-        </label>
-      <% }) %>
-    </div>
+      <label>Especialidades:</label>
+      <div class="especialidades-box">
+        <% especialidades.forEach(e => { %>
+          <label class="pill-button <%= especialidadeIds.includes(e.id) ? 'selected' : '' %>">
+            <input type="checkbox" name="especialidade_ids" value="<%= e.id %>" <%= especialidadeIds.includes(e.id) ? 'checked' : '' %>>
+            <%= e.nome %>
+          </label>
+        <% }) %>
+      </div>
 
-    <button type="submit">Salvar</button>
-    <a href="/funcionarios" style="margin-left: 10px; color: #7e57c2;">Cancelar</a>
-  </form>
+      <div class="botoes-coluna">
+        <button type="submit" class="btn-salvar">Salvar</button>
+        <a href="/funcionarios" class="btn-voltar">Cancelar</a>
+      </div>
+      
+    </form>
+  </div>
 
   <script>
     document.querySelectorAll('.pill-button').forEach(pill => {
-      const checkbox = pill.querySelector('input');
-      pill.addEventListener('click', () => {
-        checkbox.checked = !checkbox.checked;
-        pill.classList.toggle('checked', checkbox.checked);
+      pill.addEventListener('click', function () {
+        const input = pill.querySelector('input');
+        input.checked = !input.checked;
+        pill.classList.toggle('selected', input.checked);
       });
     });
   </script>
