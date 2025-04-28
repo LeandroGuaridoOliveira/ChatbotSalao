@@ -131,29 +131,41 @@
           <th>Fim</th>
           <th>Status</th>
         </tr>
-        <% ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"].forEach(dia => {
-             const dados = expediente[dia] || {};
-             const ativo = (dados.inicio && dados.fim) || true;
+        <% 
+          const diasSemana = [
+            { nome: "segunda", label: "Segunda-feira" },
+            { nome: "terca", label: "Terça-feira" },
+            { nome: "quarta", label: "Quarta-feira" },
+            { nome: "quinta", label: "Quinta-feira" },
+            { nome: "sexta", label: "Sexta-feira" },
+            { nome: "sabado", label: "Sábado" },
+            { nome: "domingo", label: "Domingo" }
+          ];
+    
+          diasSemana.forEach(dia => {
+            const dados = expediente[dia.nome] || {};
+            const ativo = dados.inicio && dados.fim;
         %>
         <tr>
-          <td><%= dia %></td>
-          <td><input type="time" name="inicio_<%= dia %>" value="<%= dados.inicio || '05:00' %>"></td>
-          <td><input type="time" name="fim_<%= dia %>" value="<%= dados.fim || '20:00' %>"></td>
+          <td><%= dia.label %></td>
+          <td><input type="time" name="inicio_<%= dia.nome %>" value="<%= dados.inicio || '05:00' %>"></td>
+          <td><input type="time" name="fim_<%= dia.nome %>" value="<%= dados.fim || '20:00' %>"></td>
           <td>
-            <button type="button" class="toggle-dia <%= ativo ? '' : 'inativo' %>" data-dia="<%= dia %>">
+            <button type="button" class="toggle-dia <%= ativo ? '' : 'inativo' %>" data-dia="<%= dia.nome %>">
               <%= ativo ? '✅ Ativo' : '🚫 Não trabalha' %>
             </button>
-            <input type="checkbox" name="ativo_<%= dia %>" value="on" <%= ativo ? 'checked' : '' %> hidden>
+            <input type="checkbox" name="ativo_<%= dia.nome %>" value="on" <%= ativo ? 'checked' : '' %> hidden>
           </td>
         </tr>
         <% }) %>
       </table>
-
+    
       <div class="botoes-coluna">
         <button type="submit" class="btn-salvar">Salvar Expediente</button>
         <a href="/funcionarios" class="btn-voltar">Cancelar</a>
       </div>
     </form>
+    
   </div>
 
   <a href="/funcionarios">&larr; Voltar</a>
@@ -163,8 +175,8 @@
       btn.addEventListener('click', () => {
         const dia = btn.dataset.dia;
         const checkbox = document.querySelector(`input[name="ativo_${dia}"]`);
-        const inicio = document.querySelector(`input[name="inicio_${dia}"]`);
-        const fim = document.querySelector(`input[name="fim_${dia}"]`);
+        const inicio = document.querySelector(`input[name="inicio_${dia}"]`) || {};
+        const fim = document.querySelector(`input[name="fim_${dia}"]`) || {};
         checkbox.checked = !checkbox.checked;
         if (checkbox.checked) {
           btn.textContent = '✅ Ativo';
@@ -189,5 +201,25 @@
       });
     });
   </script>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+  window.onload = function() {
+    const sucesso = <%= sucesso ? 'true' : 'false' %>;
+    if (sucesso) {
+      Swal.fire({
+        icon: 'success',
+        title: 'Expediente salvo com sucesso!',
+        showConfirmButton: false,
+        timer: 2000
+      }).then(() => {
+        const novaUrl = window.location.href.split('?')[0];
+        window.history.replaceState({}, document.title, novaUrl);
+      });
+    }
+  }
+</script>
+
+
 </body>
 </html>

@@ -90,6 +90,42 @@
   background-color: #b02a37;
 }
 
+.grupo-botoes {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.botao-largo {
+  padding: 8px 16px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  min-width: 100px;
+  text-align: center;
+}
+
+.botao-roxo {
+  background-color: #7e57c2;
+  color: white;
+}
+
+.botao-roxo:hover {
+  background-color: #5e35b1;
+}
+
+.botao-vermelho {
+  background-color: #e53935;
+  color: white;
+}
+
+.botao-vermelho:hover {
+  background-color: #c62828;
+}
+
+
   </style>
 </head>
 <body>
@@ -117,10 +153,22 @@
             <td><%= f.nome %></td>
             <td><%= f.especialidades || '-' %></td>
             <td>
-              <a href="/editar-funcionario/<%= f.id %>" class="btn-acao btn-editar">Editar</a>
-              <form method="POST" action="/excluir-funcionario/<%= f.id %>" class="form-excluir" style="display:inline;">
-                <button type="submit" class="btn btn-excluir">Excluir</button>
-              </form>              
+              <div class="grupo-botoes">
+                <form method="GET" action="/editar-funcionario/<%= f.id %>">
+                  <button type="submit" class="botao-roxo botao-largo">Editar</button>
+                </form>
+              
+                <form method="GET" action="/expediente-funcionario/<%= f.id %>">
+                  <button type="submit" class="botao-roxo botao-largo">Expediente</button>
+                </form>
+
+                <form method="POST" action="/excluir-funcionario/<%= f.id %>" onsubmit="return confirm('Tem certeza que deseja excluir este funcionário?')">
+                  <button type="submit" class="botao-vermelho botao-largo">Excluir</button>
+                </form>
+              
+
+              </div>
+              
               </form>
             </td>
           </tr>

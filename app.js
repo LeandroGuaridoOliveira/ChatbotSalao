@@ -91,9 +91,11 @@ async function inicializarTabelas() {
       CREATE TABLE IF NOT EXISTS procedimentos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nome TEXT,
-        valor REAL
+        valor REAL,
+        duracao INTEGER
       );
     `);
+    
     const cols = await db.all(`PRAGMA table_info(procedimentos)`);
     const temDuracao = cols.some(c => c.name === 'duracao');
     if (!temDuracao) {
@@ -173,12 +175,13 @@ async function inicializarTabelas() {
 async function inserirProcedimentosIniciais() {
     const db = await abrirBanco();
     const procedimentos = [
-        { nome: "Corte Feminino", valor: 60 },
-        { nome: "Corte Masculino", valor: 40 },
-        { nome: "Escova", valor: 50 },
-        { nome: "Manicure", valor: 30 },
-        { nome: "Pedicure", valor: 35 }
+      { nome: "Corte Feminino", valor: 60, duracao: 40 },
+      { nome: "Corte Masculino", valor: 40, duracao: 30 },
+      { nome: "Escova", valor: 50, duracao: 45 },
+      { nome: "Manicure", valor: 30, duracao: 30 },
+      { nome: "Pedicure", valor: 35, duracao: 30 }
     ];
+    
 
     async function inserirEspecialidadesPadrao() {
         const db = await abrirBanco();
@@ -193,7 +196,7 @@ async function inserirProcedimentosIniciais() {
     const row = await db.get('SELECT COUNT(*) as total FROM procedimentos');
     if (row.total === 0) {
         for (const p of procedimentos) {
-            await db.run('INSERT INTO procedimentos (nome, valor) VALUES (?, ?)', [p.nome, p.valor]);
+          await db.run('INSERT INTO procedimentos (nome, valor, duracao) VALUES (?, ?, ?)', [p.nome, p.valor, p.duracao]);
         }
     }
     await db.close();
@@ -388,15 +391,19 @@ ORDER BY a.dia, a.horario
 
 app.get('/novo-agendamento', requireLogin, async (req, res) => {
   const db = await abrirBanco();
-  const procedimentos = await db.all('SELECT * FROM procedimentos');
+  const clientes = await db.all('SELECT * FROM clientes');
   const funcionarios = await db.all('SELECT * FROM funcionarios');
+  const procedimentos = await db.all('SELECT * FROM procedimentos');
   await db.close();
+  
   res.render('novoAgendamento', {
-    procedimentos: procedimentos || [],
-    funcionarios: funcionarios || [],
-    msg: null // <-- Corrigido aqui
+    clientes,
+    funcionarios,
+    procedimentos,
+    msg: '' // <=== Adicione isso
   });
 });
+
 
     
 app.post('/novo-agendamento', requireLogin, async (req, res) => {
@@ -570,79 +577,107 @@ app.get('/horarios-ocupados', async (req, res) => {
 app.get('/horarios-disponiveis', requireLogin, async (req, res) => {
   const { funcionario_id, dia, procedimentos } = req.query;
 
-  console.log("👉 CHAMADA /horarios-disponiveis");
-  console.log("funcionario_id:", funcionario_id);
-  console.log("dia:", dia);
-  console.log("procedimentos:", procedimentos);
-
   if (!funcionario_id || !dia || !procedimentos) {
     return res.status(400).json({ erro: 'Dados incompletos.' });
   }
 
+  const procedimentosIds = Array.isArray(procedimentos) ? procedimentos : [procedimentos];
+
   const db = await abrirBanco();
 
-  // Corrigido: traduzindo para português corretamente
-  const diasSemana = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
-  const nomeDiaSemana = diasSemana[new Date(dia).getDay()];
+  try {
+    const diasSemana = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+    const nomeDiaSemana = diasSemana[new Date(dia).getDay()];
 
-  const expediente = await db.get(`
-    SELECT inicio, fim FROM horarios_expeds
-    WHERE funcionario_id = ? AND dia_semana = ?
-  `, [funcionario_id, nomeDiaSemana]);
+    console.log('Dia da semana:', nomeDiaSemana);
 
-  if (!expediente) {
-    await db.close();
-    return res.json([]); // funcionário não trabalha nesse dia
-  }
+    // Buscar expediente
+    const expediente = await db.get(`
+      SELECT inicio, fim FROM horarios_expeds
+      WHERE funcionario_id = ? AND dia_semana = ?
+    `, [funcionario_id, nomeDiaSemana]);
 
-  const agendamentos = await db.all(`
-    SELECT horario FROM agendamentos
-    WHERE funcionario_id = ? AND dia = ?
-  `, [funcionario_id, dia]);
-
-  const ocupados = agendamentos.map(a => a.horario);
-
-  const listaIds = Array.isArray(procedimentos) ? procedimentos : [procedimentos];
-  const placeholders = listaIds.map(() => '?').join(',');
-  const procRows = await db.all(
-    `SELECT duracao FROM procedimentos WHERE id IN (${placeholders})`,
-    listaIds
-  );
-
-  const duracaoTotalMin = procRows.reduce((soma, p) => soma + (p.duracao || 0), 0) + 10;
-  const horariosLivres = [];
-  let hora = dayjs(`${dia}T${expediente.inicio}`);
-  const fim = dayjs(`${dia}T${expediente.fim}`);
-  
-  // Defina o salto: se a duração total for menor que 60min, pule 60min; senão pule (duraçãoTotal + 10min)
-  const salto = duracaoTotalMin < 60 ? 60 : duracaoTotalMin + 10;
-  
-  while (hora.add(duracaoTotalMin, 'minute').isSameOrBefore(fim)) {
-    const formato = hora.format('HH:mm');
-  
-    const horarioOcupado = ocupados.some(ocupado => {
-      const inicio = dayjs(`${dia}T${ocupado}`);
-      const fimOcupado = inicio.add(duracaoTotalMin, 'minute');
-      return hora.isBefore(fimOcupado) && hora.add(duracaoTotalMin, 'minute').isAfter(inicio);
-    });
-  
-    if (!horarioOcupado) {
-      horariosLivres.push(formato);
+    if (!expediente || !expediente.inicio || !expediente.fim) {
+      await db.close();
+      return res.json({ horarios: [], ocupados: [] });
     }
-  
-    // Pula para o próximo horário baseado no salto calculado
-    hora = hora.add(salto, 'minute');
+
+    // Buscar agendamentos ocupados + durações
+    const agendamentos = await db.all(`
+      SELECT a.horario, IFNULL(SUM(p.duracao), 0) as duracaoTotal
+      FROM agendamentos a
+      LEFT JOIN agendamento_procedimentos ap ON ap.agendamento_id = a.id
+      LEFT JOIN procedimentos p ON p.id = ap.procedimento_id
+      WHERE a.funcionario_id = ? AND a.dia = ?
+      GROUP BY a.id
+    `, [funcionario_id, dia]);
+
+    // Gerar lista de horários ocupados considerando duração + intervalo
+    const horariosOcupados = [];
+
+    agendamentos.forEach(ag => {
+      let inicio = dayjs(`${dia}T${ag.horario}`);
+      const duracaoComIntervalo = ag.duracaoTotal + 10; // incluir intervalo de descanso
+      const fim = inicio.add(duracaoComIntervalo, 'minute');
+
+      while (inicio.isBefore(fim)) {
+        horariosOcupados.push(inicio.format('HH:mm'));
+        inicio = inicio.add(10, 'minute'); // marca de 10 em 10 minutos como ocupado
+      }
+    });
+
+    // Buscar duração dos novos procedimentos a serem agendados
+    const placeholders = procedimentosIds.map(() => '?').join(',');
+    const total = await db.get(`
+      SELECT SUM(duracao) as duracaoTotal
+      FROM procedimentos
+      WHERE id IN (${placeholders})
+    `, procedimentosIds);
+
+    const duracaoProcedimentos = total?.duracaoTotal || 0;
+    const duracaoTotalComIntervalo = duracaoProcedimentos + 10; // +10min de intervalo
+
+    console.log('Duração total incluindo intervalo:', duracaoTotalComIntervalo, 'minutos');
+
+    // Agora gerar todos os horários
+    const horarios = [];
+    let horaAtual = dayjs(`${dia}T${expediente.inicio}`);
+    const horaFim = dayjs(`${dia}T${expediente.fim}`);
+
+    while (horaAtual.add(duracaoTotalComIntervalo, 'minute').isSameOrBefore(horaFim)) {
+      const horarioTexto = horaAtual.format('HH:mm');
+
+      // Verificar se algum pedaço da faixa está ocupado
+      let podeAgendar = true;
+      let simulacao = horaAtual.clone();
+
+      for (let i = 0; i < duracaoTotalComIntervalo; i += 10) {
+        if (horariosOcupados.includes(simulacao.format('HH:mm'))) {
+          podeAgendar = false;
+          break;
+        }
+        simulacao = simulacao.add(10, 'minute');
+      }
+
+      horarios.push({
+        horario: horarioTexto,
+        ocupado: !podeAgendar
+      });
+
+      horaAtual = horaAtual.add(10, 'minute');
+    }
+
+    await db.close();
+
+    // Manda agora { horarios: [{horario: "05:00", ocupado: false}, ...] }
+    res.json(horarios);
+
+  } catch (error) {
+    console.error('Erro ao carregar horários:', error);
+    await db.close();
+    res.status(500).json({ erro: 'Erro interno ao buscar horários' });
   }
-  
-  await db.close();
-  res.json(horariosLivres);
 });
-
-
-function capitalizeFirst(texto) {
-  return texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase();
-}
-
 
 app.get('/editar-agendamento/:id', requireLogin, async (req, res) => {
     const id = req.params.id;
@@ -840,65 +875,72 @@ app.post('/editar-agendamento/:id', requireLogin, async (req, res) => {
         });
 
         app.get('/expediente-funcionario/:id', requireLogin, async (req, res) => {
-            const db = await abrirBanco();
-            const funcionario = await db.get('SELECT * FROM funcionarios WHERE id = ?', [req.params.id]);
+          const db = await abrirBanco();
+          const funcionario = await db.get('SELECT * FROM funcionarios WHERE id = ?', [req.params.id]);
           
-            if (!funcionario) {
-              await db.close();
-              return res.status(404).send('Funcionário não encontrado.');
-            }
-          
-            const registros = await db.all(`
-              SELECT dia_semana, inicio, fim
-              FROM horarios_expeds
-              WHERE funcionario_id = ?
-            `, [req.params.id]);
-          
-            // Mapeia os horários por dia da semana
-            const expediente = {};
-            registros.forEach(r => {
-              expediente[r.dia_semana] = { inicio: r.inicio, fim: r.fim };
-            });
-          
+          if (!funcionario) {
             await db.close();
-            res.render('expedienteFuncionario', {
-              funcionario,
-              expediente
-            });
+            return res.status(404).send('Funcionário não encontrado.');
+          }
+        
+          const registros = await db.all(`
+            SELECT dia_semana, inicio, fim
+            FROM horarios_expeds
+            WHERE funcionario_id = ?
+          `, [req.params.id]);
+        
+          // Mapeia os horários por dia da semana
+          const expediente = {};
+          registros.forEach(r => {
+            expediente[r.dia_semana] = { inicio: r.inicio, fim: r.fim };
           });
+        
+          await db.close();
+        
+          // Pega se veio parâmetro sucesso=1
+          const sucesso = req.query.sucesso === '1';
+        
+          res.render('expedienteFuncionario', {
+            funcionario,
+            expediente,
+            sucesso
+          });
+        });
+        
           
-          app.post('/expediente-funcionario/:id', requireLogin, async (req, res) => {
-            const db = await abrirBanco();
-            const funcionarioId = req.params.id;
-          
-            const diasSemana = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
-          
+        app.post('/expediente-funcionario/:id', requireLogin, async (req, res) => {
+          const funcionarioId = req.params.id;
+          const db = await abrirBanco();
+        
+          const diasSemana = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+        
+          try {
+            await db.run('DELETE FROM horarios_expeds WHERE funcionario_id = ?', [funcionarioId]);
+        
             for (const dia of diasSemana) {
-              const inicio = req.body[`inicio_${dia}`];
-              const fim = req.body[`fim_${dia}`];
-              const ativo = req.body[`ativo_${dia}`]; // checkbox vem como 'on' se marcado
-              
-          
-              if (ativo && inicio && fim) {
-                await db.run(`
-                  DELETE FROM horarios_expeds WHERE funcionario_id = ? AND dia_semana = ?
-                `, [funcionarioId, dia]);
-              
-                await db.run(`
-                  INSERT INTO horarios_expeds (funcionario_id, dia_semana, inicio, fim)
-                  VALUES (?, ?, ?, ?)
-                `, [funcionarioId, dia, inicio, fim]);
-              } else {
-                // Remove se não estiver marcado ou estiver vazio
-                await db.run(`
-                  DELETE FROM horarios_expeds WHERE funcionario_id = ? AND dia_semana = ?
-                `, [funcionarioId, dia]);
+              if (req.body[`ativo_${dia}`]) {
+                const inicio = req.body[`inicio_${dia}`];
+                const fim = req.body[`fim_${dia}`];
+        
+                if (inicio && fim) {
+                  await db.run(`
+                    INSERT INTO horarios_expeds (funcionario_id, dia_semana, inicio, fim)
+                    VALUES (?, ?, ?, ?)
+                  `, [funcionarioId, dia, inicio, fim]);
+                }
               }
-              
             }
+        
             await db.close();
-            res.redirect('/funcionarios');
-          });
+            res.redirect(`/expediente-funcionario/${funcionarioId}?sucesso=1`);
+          } catch (error) {
+            console.error('Erro ao salvar expediente:', error);
+            await db.close();
+            res.status(500).send('Erro ao salvar expediente.');
+          }
+        });
+        
+        
 
           app.get('/corrigir-expediente', async (req, res) => {
             console.log("⚙️ Rota /corrigir-expediente foi chamada!");
@@ -964,33 +1006,34 @@ app.post('/editar-agendamento/:id', requireLogin, async (req, res) => {
             
             
 
-            app.post('/procedimentos', requireLogin, async (req, res) => {
-              const db = await abrirBanco();
-            
-              try {
-                for (const key in req.body) {
-                  const [tipo, id] = key.split('_');
-                  const valorCampo = req.body[key];
-            
-                  if (tipo === 'duracao' || tipo === 'valor') {
-                    const duracao = req.body[`duracao_${id}`];
-                    const valor = req.body[`valor_${id}`];
-            
-                    // Verifica se os valores são válidos
-                    if (duracao && valor && duracao > 0 && valor >= 0) {
-                      await db.run('UPDATE procedimentos SET duracao = ?, valor = ? WHERE id = ?', [duracao, valor, id]);
-                    }
+          app.post('/procedimentos', requireLogin, async (req, res) => {
+            const db = await abrirBanco();
+          
+            try {
+              for (const key in req.body) {
+                const [tipo, id] = key.split('_');
+                const valorCampo = req.body[key];
+          
+                if (tipo === 'duracao' || tipo === 'valor') {
+                  const duracao = req.body[`duracao_${id}`];
+                  const valor = req.body[`valor_${id}`];
+          
+                  // Verifica se os valores são válidos
+                  if (duracao && valor && duracao > 0 && valor >= 0) {
+                    await db.run('UPDATE procedimentos SET duracao = ?, valor = ? WHERE id = ?', [duracao, valor, id]);
                   }
                 }
-            
-                req.session.msg = 'Procedimentos atualizados com sucesso!';
-                await db.close();
-                res.redirect('/procedimentos');
-              } catch (error) {
-                await db.close();
-                res.send('Erro ao atualizar procedimentos: ' + error.message);
               }
-            });
+          
+              await db.close();
+              res.redirect('/procedimentos?sucesso=editado'); // <<< Alterado aqui para mostrar SweetAlert
+          
+            } catch (error) {
+              await db.close();
+              res.send('Erro ao atualizar procedimentos: ' + error.message);
+            }
+          });
+          
             
       app.get('/novo-funcionario', requireLogin, async (req, res) => {
         const db = await abrirBanco();
@@ -1405,39 +1448,19 @@ app.get('/escolherHorarioFuncionario', requireLogin, async (req, res) => {
   const { dia, funcionario_id } = req.query;
   const db = await abrirBanco();
 
-  const diaSemana = dayjs(dia).format('dddd').toLowerCase();
+  const diasSemana = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+  const diaSemana = diasSemana[new Date(dia).getDay()];
+
   const expediente = await db.get(`
     SELECT inicio, fim
     FROM horarios_expeds
     WHERE funcionario_id = ? AND dia_semana = ?
   `, [funcionario_id, diaSemana]);
 
-  if (!expediente) {
-    await db.close();
-    return res.send('Funcionário não tem expediente neste dia.');
-  }
-
-  let horarios = [];
-  let atual = dayjs(`${dia} ${expediente.inicio}`);
-  const fim = dayjs(`${dia} ${expediente.fim}`);
-
-  while (atual.isBefore(fim)) {
-    horarios.push(atual.format('HH:mm'));
-    atual = atual.add(30, 'minute');
-  }
-
-  const procedimentos = await db.all('SELECT id, nome, duracao FROM procedimentos');
-
   await db.close();
-
-  res.render('escolherHorarioFuncionario', {
-    dia,
-    funcionario_id,
-    horarios,
-    fimExpediente: expediente.fim,
-    procedimentos
-  });
+  res.json({ expediente });
 });
+
 
 app.post('/excluir-especialidade/:id', requireLogin, async (req, res) => {
   const db = await abrirBanco();
@@ -1453,6 +1476,76 @@ app.post('/excluir-especialidade/:id', requireLogin, async (req, res) => {
     await db.close();
   }
 });
+
+app.get('/debug-expedientes', requireLogin, async (req, res) => {
+  const db = await abrirBanco();
+  const registros = await db.all(`SELECT * FROM horarios_expeds`);
+  await db.close();
+  res.json(registros);
+});
+// Listar procedimentos
+app.get('/procedimentos', requireLogin, async (req, res) => {
+  const db = await abrirBanco();
+  const procedimentos = await db.all('SELECT * FROM procedimentos');
+  await db.close();
+  res.render('procedimentos', { procedimentos, msg: null });
+});
+
+app.get('/novo-procedimento', requireLogin, (req, res) => {
+  res.render('novoProcedimento', { msg: null }); // <<< Corrigido aqui
+});
+
+app.post('/novo-procedimento', requireLogin, async (req, res) => {
+  const { nome, valor, duracao } = req.body;
+  const db = await abrirBanco();
+  await db.run('INSERT INTO procedimentos (nome, valor, duracao) VALUES (?, ?, ?)', [nome, valor, duracao]);
+  await db.close();
+  res.redirect('/procedimentos?sucesso=1');
+});
+
+
+// Exibir formulário para editar procedimentos (tela de edição em massa)
+// Rota para exibir tela de edição de procedimentos
+app.get('/editar-procedimento', requireLogin, async (req, res) => {
+  const db = await abrirBanco();
+  const procedimentos = await db.all('SELECT * FROM procedimentos');
+  await db.close();
+  res.render('editarProcedimento', { procedimentos, msg: null });
+});
+
+
+
+// Salvar alterações de procedimentos
+app.post('/procedimentos', requireLogin, async (req, res) => {
+  const db = await abrirBanco();
+  const procedimentos = await db.all('SELECT * FROM procedimentos');
+
+  for (const p of procedimentos) {
+    const novaDuracao = req.body[`duracao_${p.id}`];
+    const novoValor = req.body[`valor_${p.id}`];
+    if (novaDuracao !== undefined && novoValor !== undefined) {
+      await db.run('UPDATE procedimentos SET duracao = ?, valor = ? WHERE id = ?', [novaDuracao, novoValor, p.id]);
+    }
+  }
+
+  await db.close();
+  res.render('editarProcedimento', { procedimentos, msg: 'Procedimentos atualizados com sucesso!' });
+});
+
+app.get('/excluir-procedimento/:id', requireLogin, async (req, res) => {
+  const { id } = req.params;
+  const db = await abrirBanco();
+
+  try {
+    await db.run('DELETE FROM procedimentos WHERE id = ?', [id]);
+    await db.close();
+    res.redirect('/procedimentos?sucesso=excluido'); // redireciona para a lista com SweetAlert
+  } catch (error) {
+    await db.close();
+    res.send('Erro ao excluir procedimento: ' + error.message);
+  }
+});
+
 
       
 app.get('/', (req, res) => res.redirect('/agendamentos'));

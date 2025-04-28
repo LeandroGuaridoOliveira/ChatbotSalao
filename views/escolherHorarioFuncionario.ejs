@@ -3,66 +3,155 @@
 <head>
   <meta charset="UTF-8">
   <title>Escolher Horário</title>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f2f2f2;
+      padding: 20px;
+    }
+    h1 {
+      color: #7e57c2;
+    }
+    .box {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      margin-top: 20px;
+    }
+    th, td {
+      padding: 12px;
+      border: 1px solid #ddd;
+      text-align: center;
+      cursor: pointer;
+    }
+    th {
+      background-color: #7e57c2;
+      color: white;
+    }
+    .horario-disponivel {
+      background-color: #c8e6c9;
+    }
+    .horario-ocupado {
+      background-color: #ffcdd2;
+      cursor: not-allowed;
+    }
+    .selecionado {
+      background-color: #4caf50 !important;
+      color: white;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
 
-<h1>Escolha um Horário</h1>
+<h1>Escolher Horário</h1>
 
-<form id="formAgendamento" method="post" action="/confirmarAgendamento">
-  <input type="hidden" id="horario" name="horario">
-  <input type="hidden" id="dia" name="dia" value="<%= dia %>">
-  <input type="hidden" id="fimExpediente" value="<%= fimExpediente %>">
+<div class="box">
+  <label>Data:</label>
+  <input type="date" name="dia" onchange="atualizarHorarios()">
 
-  <h3>Procedimentos:</h3>
+  <label>Funcionário:</label>
+  <select name="funcionario_id" onchange="atualizarHorarios()">
+    <% funcionarios.forEach(func => { %>
+      <option value="<%= func.id %>"><%= func.nome %></option>
+    <% }) %>
+  </select>
+
+  <label>Procedimentos:</label>
   <% procedimentos.forEach(proc => { %>
-    <div>
-      <input 
-        type="checkbox" 
-        name="procedimentos" 
-        value="<%= proc.id %>" 
-        data-duracao="<%= proc.duracao %>">
-      <%= proc.nome %> (<%= proc.duracao %> min)
-    </div>
+    <label>
+      <input type="checkbox" name="procedimentos" value="<%= proc.id %>" onchange="atualizarHorarios()">
+      <%= proc.nome %>
+    </label>
   <% }) %>
+</div>
 
-  <h3>Horários Disponíveis:</h3>
-  <% horarios.forEach(h => { %>
-    <button type="button" onclick="escolherHorario('<%= h %>')" style="margin:5px;"><%= h %></button>
-  <% }) %>
-</form>
+<div class="box">
+  <table id="tabelaHorarios">
+    <thead>
+      <tr>
+        <th>Horário</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="corpoTabela">
+      <tr>
+        <td colspan="2">Selecione a data, funcionário e procedimentos</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<input type="hidden" name="horarioSelecionado" id="horarioSelecionado">
 
 <script>
-async function escolherHorario(horario) {
-  const procedimentosSelecionados = [...document.querySelectorAll('input[name="procedimentos"]:checked')];
-  
-  if (procedimentosSelecionados.length === 0) {
-    Swal.fire('Atenção', 'Selecione ao menos um procedimento.', 'warning');
+async function buscarHorarios() {
+  const funcionario_id = document.querySelector('[name="funcionario_id"]').value;
+  const dia = document.querySelector('[name="dia"]').value;
+  const procedimentos = Array.from(document.querySelectorAll('input[name="procedimentos"]:checked')).map(cb => cb.value);
+
+  if (!funcionario_id || !dia) {
+    console.error('Funcionário ou data não selecionados.');
+    return { horarios: [], ocupados: [] };
+  }
+
+  const params = new URLSearchParams({ funcionario_id, dia });
+  procedimentos.forEach(p => params.append('procedimentos', p));
+
+  try {
+    const res = await fetch(`/horarios-disponiveis?${params}`);
+    const data = await res.json();
+    console.log('Horários recebidos:', data);
+    return data;
+  } catch (error) {
+    console.error('Erro ao buscar horários:', error);
+    return { horarios: [], ocupados: [] };
+  }
+}
+
+async function atualizarHorarios() {
+  const tabela = document.getElementById('corpoTabela');
+  tabela.innerHTML = '<tr><td colspan="2">Carregando...</td></tr>';
+
+  const { horarios, ocupados } = await buscarHorarios();
+
+  if (!horarios.length) {
+    tabela.innerHTML = '<tr><td colspan="2">Nenhum horário encontrado.</td></tr>';
     return;
   }
 
-  const procedimentos = procedimentosSelecionados.map(p => ({
-    id: p.value,
-    duracao: parseInt(p.dataset.duracao)
-  }));
+  tabela.innerHTML = '';
 
-  // Calcular duração total + descanso
-  const duracaoTotal = procedimentos.reduce((total, p) => total + p.duracao, 0) + 10; // 10 minutos só uma vez
+  horarios.forEach(horario => {
+    const ocupado = ocupados.includes(horario);
+    const tr = document.createElement('tr');
+    tr.className = ocupado ? 'horario-ocupado' : 'horario-disponivel';
+    tr.innerHTML = `
+      <td>${horario}</td>
+      <td>${ocupado ? 'Ocupado' : 'Disponível'}</td>
+    `;
 
-  const horaInicio = dayjs(`${document.getElementById('dia').value}T${horario}`);
-  const horaFimEsperada = horaInicio.add(duracaoTotal, 'minute');
+    if (!ocupado) {
+      tr.addEventListener('click', () => selecionarHorario(tr, horario));
+    }
 
-  const expedienteFim = dayjs(`${document.getElementById('dia').value}T${document.getElementById('fimExpediente').value}`);
+    tabela.appendChild(tr);
+  });
+}
 
-  if (horaFimEsperada.isAfter(expedienteFim)) {
-    Swal.fire('Erro', 'O horário escolhido não comporta todos os procedimentos selecionados.', 'error');
-    return;
-  }
-
-  // Se der tudo certo
-  document.getElementById('horario').value = horario;
-  document.getElementById('formAgendamento').submit();
+function selecionarHorario(trSelecionado, horario) {
+  document.querySelectorAll('#corpoTabela tr').forEach(tr => {
+    tr.classList.remove('selecionado');
+  });
+  trSelecionado.classList.add('selecionado');
+  document.getElementById('horarioSelecionado').value = horario;
 }
 </script>
 
