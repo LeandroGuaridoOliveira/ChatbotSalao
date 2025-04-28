@@ -14,7 +14,7 @@
       align-items: flex-start;
       min-height: 100vh;
     }
-
+  
     .container {
       background: white;
       padding: 30px;
@@ -23,80 +23,85 @@
       width: 100%;
       max-width: 800px;
     }
-
+  
     h1 {
       text-align: center;
       color: #6f42c1;
       margin-bottom: 30px;
     }
-
+  
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 20px;
+      background-color: white;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     }
-
+  
     th, td {
       padding: 12px;
       text-align: center;
       border-bottom: 1px solid #eee;
     }
-
+  
     th {
       background-color: #6f42c1;
       color: white;
     }
-
-    .btn {
-      padding: 8px 16px;
-      font-size: 14px;
-      border: none;
+  
+    /* Grupo de botões lado a lado */
+    .botoes {
+      display: flex;
+      justify-content: center;
+      gap: 6px; /* espaço entre os botões */
+    }
+  
+    .botao-largo {
+      padding: 6px 12px; /* 🔥 MENOR altura e largura */
+      font-size: 13px;
       border-radius: 6px;
+      border: none;
       cursor: pointer;
       text-decoration: none;
       transition: background-color 0.3s;
+      flex: none; /* 🔥 Não esticar */
+      min-width: 80px; /* 🔥 largura mínima para ficar bonito */
     }
-
-    .btn-editar {
+  
+    .botao-roxo {
       background-color: #6f42c1;
       color: white;
     }
-
-    .btn-editar:hover {
+    .botao-roxo:hover {
       background-color: #5a34a1;
     }
-
-    .btn-excluir {
+  
+    .botao-vermelho {
       background-color: #dc3545;
       color: white;
     }
-
-    .btn-excluir:hover {
+    .botao-vermelho:hover {
       background-color: #b02a37;
     }
-
+  
+    /* Botão para Nova Especialidade */
     .btn-nova {
       background-color: #6f42c1;
       color: white;
       margin-bottom: 20px;
       display: inline-block;
-      padding: 10px 20px;
+      padding: 8px 16px;
       font-size: 15px;
       border-radius: 8px;
       text-decoration: none;
       transition: background-color 0.3s;
     }
-
     .btn-nova:hover {
       background-color: #5a34a1;
     }
-
-    .botoes {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-    }
   </style>
+  
+  
 </head>
 <body>
 
@@ -110,26 +115,31 @@
     <table>
       <thead>
         <tr>
-          <th>Nome</th>
-          <th>Ações</th>
+          <th>Nome da Especialidade</th>
+          <th style="width: 200px;">Ações</th>
         </tr>
       </thead>
       <tbody>
         <% especialidades.forEach(e => { %>
           <tr>
             <td><%= e.nome %></td>
-            <td class="botoes">
-              <a href="/editar-especialidade/<%= e.id %>" class="btn btn-editar">Editar</a>
-
-              <form method="POST" action="/excluir-especialidade/<%= e.id %>" class="form-excluir" style="display:inline;">
-                <button type="submit" class="btn btn-excluir">Excluir</button>
-              </form>
+            <td>
+              <div class="botoes">
+                <form method="GET" action="/editar-especialidade/<%= e.id %>">
+                  <button type="submit" class="botao-roxo botao-largo">Editar</button>
+                </form>
+            
+                <button type="button" class="botao-vermelho botao-largo" onclick="confirmarExclusaoEspecialidade(<%= e.id %>)">
+                  Excluir
+                </button>
+              </div>
             </td>
+            
           </tr>
         <% }) %>
       </tbody>
     </table>
-
+    
     <div style="text-align: center; margin-top: 20px;">
       <a href="/agendamentos" class="btn btn-voltar" style="background-color:#ccc; color:#333;">Voltar</a>
     </div>
@@ -160,6 +170,84 @@
       });
     });
   </script>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+function confirmarExclusaoEspecialidade(id) {
+  Swal.fire({
+    title: 'Tem certeza?',
+    text: 'Essa ação excluirá a especialidade permanentemente!',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#e53935',
+    cancelButtonColor: '#7e57c2',
+    confirmButtonText: 'Sim, excluir',
+    cancelButtonText: 'Cancelar'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      excluirEspecialidade(id);
+    }
+  });
+}
+
+async function excluirEspecialidade(id) {
+  try {
+    const response = await fetch(`/excluir-especialidade/${id}`, {
+      method: 'POST'
+    });
+    if (response.ok) {
+      Swal.fire('Excluído!', 'Especialidade excluída com sucesso.', 'success')
+        .then(() => {
+          location.reload(); // recarrega a página para atualizar a lista
+        });
+    } else {
+      Swal.fire('Erro', 'Não foi possível excluir a especialidade.', 'error');
+    }
+  } catch (error) {
+    Swal.fire('Erro', 'Erro de comunicação com o servidor.', 'error');
+  }
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+function confirmarExclusaoEspecialidade(id) {
+  Swal.fire({
+    title: 'Tem certeza?',
+    text: 'Essa ação excluirá a especialidade permanentemente!',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#e53935',
+    cancelButtonColor: '#7e57c2',
+    confirmButtonText: 'Sim, excluir',
+    cancelButtonText: 'Cancelar'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      excluirEspecialidade(id);
+    }
+  });
+}
+
+async function excluirEspecialidade(id) {
+  try {
+    const response = await fetch(`/excluir-especialidade/${id}`, {
+      method: 'POST'
+    });
+    if (response.ok) {
+      Swal.fire('Excluído!', 'Especialidade excluída com sucesso.', 'success')
+        .then(() => {
+          location.reload(); 
+        });
+    } else {
+      Swal.fire('Erro', 'Não foi possível excluir a especialidade.', 'error');
+    }
+  } catch (error) {
+    Swal.fire('Erro', 'Erro de comunicação com o servidor.', 'error');
+  }
+}
+</script>
+
 
 </body>
 </html>

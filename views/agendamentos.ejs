@@ -9,11 +9,12 @@
       margin: 40px;
       background-color: #f9f9f9;
     }
-
+  
     h1 {
       color: #7e57c2;
     }
-
+  
+    /* Estilo do formulário de filtros */
     .form-filtro {
       margin-bottom: 24px;
       background: #fff;
@@ -25,12 +26,12 @@
       align-items: center;
       gap: 10px;
     }
-
+  
     .form-filtro label {
       font-weight: bold;
       margin-right: 6px;
     }
-
+  
     .form-filtro select,
     .form-filtro input {
       padding: 6px 10px;
@@ -38,7 +39,7 @@
       border: 1px solid #ccc;
       min-width: 150px;
     }
-
+  
     .form-filtro button {
       background-color: #7e57c2;
       color: white;
@@ -48,51 +49,71 @@
       font-weight: bold;
       cursor: pointer;
     }
-
+  
     .form-filtro a {
       text-decoration: none;
       color: #7e57c2;
       font-size: 14px;
       margin-left: 10px;
     }
-
+  
+    /* Estilo da tabela */
     table {
       border-collapse: collapse;
       width: 100%;
       background: #fff;
       box-shadow: 0 2px 5px #ccc;
     }
-
+  
     th, td {
       border: 1px solid #ddd;
       padding: 12px 10px;
       text-align: left;
     }
-
+  
     tr:nth-child(even) { background-color: #f6f6f6; }
     tr:hover { background-color: #f0ebfa; }
-
+  
     th {
       background-color: #ede7f6;
       color: #5e35b1;
     }
-
+  
+    /* Links de navegação */
     .links {
       margin-top: 30px;
       font-size: 15px;
     }
-
+  
     .links a {
       color: #7e57c2;
       text-decoration: none;
       margin-right: 16px;
     }
-
+  
     .links a:hover {
       text-decoration: underline;
     }
-
-    /* Novo estilo de botões */
+  
+    /* Navegação acima da tabela */
+    .navegacao {
+      margin-bottom: 10px;
+      text-align: center;
+    }
+  
+    .navegacao a {
+      margin: 0 10px;
+      text-decoration: none;
+      color: #6f42c1;
+      font-weight: bold;
+      transition: color 0.3s;
+    }
+  
+    .navegacao a:hover {
+      color: #5a34a1;
+    }
+  
+    /* Estilos de grupo de botões */
     .grupo-botoes {
       display: flex;
       justify-content: space-between;
@@ -101,12 +122,13 @@
       flex-wrap: nowrap;
       width: 100%;
     }
-
+  
     .grupo-botoes form {
       flex: 1;
       margin: 0;
     }
-
+  
+    /* Botões padrão */
     .botao-largo {
       width: 100%;
       padding: 10px 0;
@@ -116,7 +138,8 @@
       white-space: nowrap;
       cursor: pointer;
     }
-
+  
+    /* Botão roxo - Editar */
     .botao-roxo {
       background-color: #7e57c2;
       color: white;
@@ -124,7 +147,8 @@
     .botao-roxo:hover {
       background-color: #5e35b1;
     }
-
+  
+    /* Botão vermelho - Excluir */
     .botao-vermelho {
       background-color: #e53935;
       color: white;
@@ -132,25 +156,17 @@
     .botao-vermelho:hover {
       background-color: #c62828;
     }
-
-    .navegacao {
-  margin-bottom: 10px;
-  text-align: center;
-}
-.navegacao a {
-  margin: 0 10px;
-  text-decoration: none;
-  color: #6f42c1;
-  font-weight: bold;
-  transition: color 0.3s;
-}
-.navegacao a:hover {
-  color: #5a34a1;
-}
-
-
-
+  
+    /* Botão verde - Finalizar */
+    .botao-verde {
+      background-color: #4CAF50;
+      color: white;
+    }
+    .botao-verde:hover {
+      background-color: #388e3c;
+    }
   </style>
+  
 </head>
 <body>
 
@@ -230,33 +246,42 @@
       <th>Valor Total</th>      
       <th>Ações</th>
     </tr>
-    <% if (ags.length === 0) { %>
-      <tr>
-        <td colspan="8" style="text-align:center;">Nenhum agendamento encontrado.</td>
-      </tr>
-    <% } else { %>
-      <% ags.forEach(a => { %>
+    <tbody>
+      <% if (ags.length === 0) { %>
         <tr>
-          <td><%= a.cliente_nome %></td>
-          <td><%= a.cliente_cpf %></td>
-          <td><%= a.dia %></td>
-          <td><%= a.horario %></td>
-          <td><%= a.nomes_procedimentos %></td>
-          <td><%= a.funcionario_nome || "Não atribuído" %></td>
-          <td>R$ <%= (a.valor_total || 0).toFixed(2) %></td>
-          <td style="padding: 6px 8px;">
-            <div class="grupo-botoes largura-total">
-              <form method="get" action="/editar-agendamento/<%= a.agendamento_id %>">
-                <button type="submit" class="botao-roxo botao-largo">Editar</button>
-              </form>
-              <form method="post" action="/apagar-agendamento/<%= a.agendamento_id %>" class="form-excluir-agendamento">
-                <button type="submit" class="botao-vermelho botao-largo">Excluir</button>
-              </form>
-            </div>
-          </td>
+          <td colspan="8" style="text-align:center;">Nenhum agendamento encontrado.</td>
         </tr>
-      <% }) %>
-    <% } %>
+      <% } else { %>
+        <% ags.forEach(a => { %>
+          <tr id="linha-agendamento-<%= a.agendamento_id %>">
+            <td><%= a.cliente_nome %></td>
+            <td><%= a.cliente_cpf %></td>
+            <td><%= a.dia %></td>
+            <td><%= a.horario %></td>
+            <td><%= a.nomes_procedimentos %></td>
+            <td><%= a.funcionario_nome || "Não atribuído" %></td>
+            <td>R$ <%= (a.valor_total || 0).toFixed(2) %></td>
+            <td style="padding: 6px 8px;">
+              <div class="grupo-botoes largura-total">
+                <form onsubmit="finalizarAgendamento(<%= a.agendamento_id %>); return false;">
+                  <button type="submit" class="botao-verde botao-largo">Finalizar</button>
+                </form>
+            
+                <form method="get" action="/editar-agendamento/<%= a.agendamento_id %>">
+                  <button type="submit" class="botao-roxo botao-largo">Editar</button>
+                </form>
+            
+                <form method="post" action="/apagar-agendamento/<%= a.agendamento_id %>" class="form-excluir-agendamento">
+                  <button type="submit" class="botao-vermelho botao-largo">Excluir</button>
+                </form>
+            
+              </div>
+            </td>
+            
+          </tr>
+        <% }) %>
+      <% } %>
+    </tbody>    
   </table>
   
 
@@ -294,5 +319,37 @@
       });
     });
   </script>
+
+<script>
+  async function finalizarAgendamento(id) {
+    const confirmar = await Swal.fire({
+      title: 'Finalizar Agendamento?',
+      text: "Tem certeza que deseja marcar como finalizado?",
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#4CAF50',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Sim, finalizar',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (confirmar.isConfirmed) {
+      try {
+        const response = await fetch(`/agendamentos/finalizar/${id}`, { method: 'POST' });
+        const result = await response.json();
+        if (result.success) {
+          Swal.fire('Finalizado!', 'O agendamento foi finalizado.', 'success');
+          const linha = document.getElementById(`linha-agendamento-${id}`);
+          if (linha) linha.remove();
+        } else {
+          Swal.fire('Erro', 'Não foi possível finalizar o agendamento.', 'error');
+        }
+      } catch (error) {
+        Swal.fire('Erro', 'Erro de comunicação com o servidor.', 'error');
+      }
+    }
+  }
+</script>
+
 </body>
 </html>

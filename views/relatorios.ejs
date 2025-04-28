@@ -6,47 +6,68 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      background-color: #f5f5f5;
-      margin: 40px;
+      margin: 20px;
+      background-color: #f9f9f9;
     }
-    h1 {
-      color: #7e57c2;
-    }
-    form {
-      background: #fff;
+    .box {
+      background: white;
       padding: 20px;
       border-radius: 8px;
-      box-shadow: 0 2px 6px #ccc;
-      margin-bottom: 30px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    form {
       display: flex;
-      flex-wrap: wrap;
-      gap: 16px;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .linha-filtros {
+      display: flex;
+      justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .grupo-esquerda {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .grupo-direita {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
     label {
       font-weight: bold;
-      color: #555;
     }
     input, select {
       padding: 8px;
       border-radius: 4px;
       border: 1px solid #ccc;
-      min-width: 160px;
+      min-width: 150px;
     }
-    button {
+    button, a.button-link {
+      padding: 8px 16px;
+      min-width: 150px;
+      text-align: center;
+      border-radius: 4px;
       background-color: #7e57c2;
       color: white;
-      font-weight: bold;
       border: none;
-      border-radius: 4px;
-      padding: 10px 20px;
       cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+    button:hover, a.button-link:hover {
+      background-color: #6a48b3;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      background-color: white;
-      box-shadow: 0 2px 6px #ccc;
+      background: white;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
     th, td {
       padding: 12px;
@@ -54,88 +75,119 @@
       text-align: left;
     }
     th {
-      background-color: #ede7f6;
-      color: #5e35b1;
+      background-color: #7e57c2;
+      color: white;
     }
-    tr:nth-child(even) {
-      background-color: #f9f9f9;
+    .paginacao {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
     }
     .resumo {
-      margin-top: 20px;
+      margin-top: 30px;
       font-weight: bold;
-      color: #444;
-    }
-    a {
-      color: #7e57c2;
-      text-decoration: none;
-      margin-top: 20px;
-      display: inline-block;
     }
   </style>
+
+  <script>
+    function atualizarFiltro() {
+      const tipoFiltro = document.getElementById('filtro').value;
+
+      document.getElementById('campoTexto').style.display = (tipoFiltro === 'nome' || tipoFiltro === 'cpf') ? 'block' : 'none';
+      document.getElementById('campoProcedimento').style.display = (tipoFiltro === 'procedimento') ? 'block' : 'none';
+      document.getElementById('campoFuncionario').style.display = (tipoFiltro === 'funcionario') ? 'block' : 'none';
+      document.getElementById('campoValor').style.display = (tipoFiltro === 'valor') ? 'block' : 'none';
+      document.getElementById('campoData').style.display = (tipoFiltro === 'data') ? 'block' : 'none';
+    }
+
+    window.onload = atualizarFiltro;
+  </script>
 </head>
+
 <body>
 
-  <h1>Relatórios de Agendamentos</h1>
+<h1>Relatórios de Agendamentos</h1>
 
+<div class="box">
   <form method="get" action="/relatorios">
-    <div>
-      <label for="dataInicio">Data Início:</label><br>
-      <input type="date" name="dataInicio" id="dataInicio" value="<%= filtros.dataInicio || '' %>">
+    
+    <!-- Linha principal: Filtros e Botões -->
+    <div class="linha-filtros">
+      <!-- Parte Esquerda -->
+      <div class="grupo-esquerda">
+        <label for="filtro">Filtrar por:</label>
+        <select name="filtro" id="filtro" onchange="atualizarFiltro()">
+          <option value="">Selecione</option>
+          <option value="nome" <%= filtro === 'nome' ? 'selected' : '' %>>Nome do Cliente</option>
+          <option value="cpf" <%= filtro === 'cpf' ? 'selected' : '' %>>CPF do Cliente</option>
+          <option value="procedimento" <%= filtro === 'procedimento' ? 'selected' : '' %>>Procedimento</option>
+          <option value="funcionario" <%= filtro === 'funcionario' ? 'selected' : '' %>>Funcionário</option>
+          <option value="valor" <%= filtro === 'valor' ? 'selected' : '' %>>Valor</option>
+          <option value="data" <%= filtro === 'data' ? 'selected' : '' %>>Data</option>
+        </select>
+        <button type="submit">Filtrar</button>
+      </div>
+
+      <!-- Parte Direita -->
+      <div class="grupo-direita">
+        <a class="button-link" href="/relatorios/pdf?<%= new URLSearchParams(filtros).toString() %>" target="_blank">📄 Exportar PDF</a>
+        <a class="button-link" href="/relatorios/excel?<%= new URLSearchParams(filtros).toString() %>" target="_blank">📊 Exportar Excel</a>
+      </div>
     </div>
 
-    <div>
-      <label for="dataFim">Data Fim:</label><br>
-      <input type="date" name="dataFim" id="dataFim" value="<%= filtros.dataFim || '' %>">
+    <!-- Campos dinâmicos -->
+    <div id="campoTexto" style="display:none;">
+      <label>Digite aqui:</label>
+      <input type="text" name="valorTexto" value="<%= valorTexto %>">
     </div>
 
-    <div>
-      <label for="funcionario_id">Funcionário:</label><br>
-      <select name="funcionario_id" id="funcionario_id">
+    <div id="campoProcedimento" style="display:none;">
+      <label>Selecione o Procedimento:</label>
+      <select name="valorProcedimento">
         <option value="">Todos</option>
-        <% funcionarios.forEach(f => { %>
-          <option value="<%= f.id %>" <%= filtros.funcionario_id == f.id ? 'selected' : '' %>>
-            <%= f.nome %> - <%= f.especialidade %>
-          </option>
+        <% procedimentos.forEach(proc => { %>
+          <option value="<%= proc.id %>" <%= valorProcedimento == proc.id ? 'selected' : '' %>><%= proc.nome %></option>
         <% }) %>
       </select>
     </div>
 
-    <div>
-      <label for="procedimento_id">Procedimento:</label><br>
-      <select name="procedimento_id" id="procedimento_id">
+    <div id="campoFuncionario" style="display:none;">
+      <label>Selecione o Funcionário:</label>
+      <select name="valorFuncionario">
         <option value="">Todos</option>
-        <% procedimentos.forEach(p => { %>
-          <option value="<%= p.id %>" <%= filtros.procedimento_id == p.id ? 'selected' : '' %>><%= p.nome %></option>
+        <% funcionarios.forEach(func => { %>
+          <option value="<%= func.id %>" <%= valorFuncionario == func.id ? 'selected' : '' %>><%= func.nome %></option>
         <% }) %>
       </select>
-      
     </div>
 
-    <div style="align-self: flex-end;">
-      <button type="submit">Filtrar</button>
+    <div id="campoValor" style="display:none;">
+      <label>Valor Mínimo (R$):</label>
+      <input type="number" step="0.01" min="0" name="valorMin" value="<%= valorMin %>">
+      <label>Valor Máximo (R$):</label>
+      <input type="number" step="0.01" min="0" name="valorMax" value="<%= valorMax %>">
     </div>
+
+    <div id="campoData" style="display:none;">
+      <label>Data Início:</label>
+      <input type="date" name="dataInicio" value="<%= dataInicio %>">
+      <label>Data Fim:</label>
+      <input type="date" name="dataFim" value="<%= dataFim %>">
+    </div>
+
   </form>
+</div>
 
-  <% if (agendamentos.length === 0) { %>
-    <p>Nenhum agendamento encontrado para os filtros selecionados.</p>
-  <% } else { %>
-
-    <%
-function formatarDataBR(dataISO) {
-  const [ano, mes, dia] = dataISO.split('-');
-  return `${dia}/${mes}/${ano}`;
-}
-%>
-
+<!-- Tabela de Resultados -->
 <table>
   <thead>
     <tr>
       <th>Cliente</th>
       <th>Funcionário</th>
-      <th>Procedimentos</th>
-      <th>Valor Total</th>
       <th>Data</th>
       <th>Horário</th>
+      <th>Valor Total</th>
     </tr>
   </thead>
   <tbody>
@@ -143,23 +195,39 @@ function formatarDataBR(dataISO) {
       <tr>
         <td><%= a.cliente_nome %></td>
         <td><%= a.funcionario_nome %></td>
-        <td><%= a.procedimentos || 'Nenhum' %></td>
-        <td>R$ <%= (a.valor_total || 0).toFixed(2) %></td>
         <td><%= a.dia %></td>
         <td><%= a.horario %></td>
+        <td>R$ <%= parseFloat(a.valor_total || 0).toFixed(2) %></td>
       </tr>
     <% }) %>
   </tbody>
+
+  <div class="paginacao">
+    <% if (paginaAtual > 1) { %>
+      <a class="button-link" href="?<%= new URLSearchParams({ ...filtros, pagina: paginaAtual - 1 }).toString() %>">⬅️ Página Anterior</a>
+    <% } %>
+  
+    <span style="align-self: center;">Página <%= paginaAtual %></span>
+  
+    <% if (temProximaPagina) { %>
+      <a class="button-link" href="?<%= new URLSearchParams({ ...filtros, pagina: paginaAtual + 1 }).toString() %>">Próxima Página ➡️</a>
+    <% } %>
+  </div>
+  
 </table>
 
 
-    <div class="resumo">
-      <p>Total de agendamentos: <%= agendamentos.length %></p>
-      <p>Soma total: R$ <%= agendamentos.reduce((acc, a) => acc + (a.valor_total || 0), 0).toFixed(2) %></p>
-    </div>
-  <% } %>
 
-  <a href="/agendamentos">&larr; Voltar</a>
+<!-- Resumo Financeiro -->
+<div class="resumo">
+  <p>Total de agendamentos: <%= agendamentos.length %></p>
+  <p>Valor total: R$ <%= agendamentos.reduce((acc, a) => acc + (a.valor_total || 0), 0).toFixed(2) %></p>
+</div>
+
+<!-- Botão Voltar -->
+<div style="margin-top: 40px;">
+  <a href="/agendamentos" class="button-link">⬅️ Voltar</a>
+</div>
 
 </body>
 </html>

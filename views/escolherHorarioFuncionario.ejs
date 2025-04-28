@@ -2,65 +2,69 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8">
-  <title>Escolher Funcionário</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f5f5f5;
-      padding: 40px;
-    }
-
-    h1 {
-      color: #7e57c2;
-      margin-bottom: 20px;
-    }
-
-    form {
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px #ccc;
-      max-width: 400px;
-    }
-
-    select, button {
-      width: 100%;
-      padding: 10px;
-      margin-top: 12px;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-      font-size: 15px;
-    }
-
-    button {
-      background-color: #7e57c2;
-      color: white;
-      font-weight: bold;
-      cursor: pointer;
-      border: none;
-    }
-
-    a {
-      display: inline-block;
-      margin-top: 20px;
-      color: #7e57c2;
-      text-decoration: none;
-    }
-  </style>
+  <title>Escolher Horário</title>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
 </head>
 <body>
-  <h1>Escolher Funcionário</h1>
-  <form method="POST" action="/escolher-funcionario-horario">
-    <label for="funcionario_id">Funcionário:</label>
-    <select name="funcionario_id" required>
-      <option value="">Selecione...</option>
-      <% funcionarios.forEach(f => { %>
-        <option value="<%= f.id %>"><%= f.nome %></option>
-      <% }) %>
-    </select>
-    <button type="submit">Gerenciar Horários</button>
-  </form>
 
-  <a href="/funcionarios">&larr; Voltar</a>
+<h1>Escolha um Horário</h1>
+
+<form id="formAgendamento" method="post" action="/confirmarAgendamento">
+  <input type="hidden" id="horario" name="horario">
+  <input type="hidden" id="dia" name="dia" value="<%= dia %>">
+  <input type="hidden" id="fimExpediente" value="<%= fimExpediente %>">
+
+  <h3>Procedimentos:</h3>
+  <% procedimentos.forEach(proc => { %>
+    <div>
+      <input 
+        type="checkbox" 
+        name="procedimentos" 
+        value="<%= proc.id %>" 
+        data-duracao="<%= proc.duracao %>">
+      <%= proc.nome %> (<%= proc.duracao %> min)
+    </div>
+  <% }) %>
+
+  <h3>Horários Disponíveis:</h3>
+  <% horarios.forEach(h => { %>
+    <button type="button" onclick="escolherHorario('<%= h %>')" style="margin:5px;"><%= h %></button>
+  <% }) %>
+</form>
+
+<script>
+async function escolherHorario(horario) {
+  const procedimentosSelecionados = [...document.querySelectorAll('input[name="procedimentos"]:checked')];
+  
+  if (procedimentosSelecionados.length === 0) {
+    Swal.fire('Atenção', 'Selecione ao menos um procedimento.', 'warning');
+    return;
+  }
+
+  const procedimentos = procedimentosSelecionados.map(p => ({
+    id: p.value,
+    duracao: parseInt(p.dataset.duracao)
+  }));
+
+  // Calcular duração total + descanso
+  const duracaoTotal = procedimentos.reduce((total, p) => total + p.duracao, 0) + 10; // 10 minutos só uma vez
+
+  const horaInicio = dayjs(`${document.getElementById('dia').value}T${horario}`);
+  const horaFimEsperada = horaInicio.add(duracaoTotal, 'minute');
+
+  const expedienteFim = dayjs(`${document.getElementById('dia').value}T${document.getElementById('fimExpediente').value}`);
+
+  if (horaFimEsperada.isAfter(expedienteFim)) {
+    Swal.fire('Erro', 'O horário escolhido não comporta todos os procedimentos selecionados.', 'error');
+    return;
+  }
+
+  // Se der tudo certo
+  document.getElementById('horario').value = horario;
+  document.getElementById('formAgendamento').submit();
+}
+</script>
+
 </body>
 </html>

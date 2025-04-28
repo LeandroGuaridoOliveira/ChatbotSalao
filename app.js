@@ -7,8 +7,27 @@ const path = require('path');
 const dayjs = require('dayjs'); // use `npm install dayjs` se ainda não tiver
 const duration = require('dayjs/plugin/duration');
 const isSameOrBefore = require('dayjs/plugin/isSameOrBefore');
+const fs = require('fs');
 dayjs.extend(isSameOrBefore);
 dayjs.extend(duration);
+
+
+// Função para registrar erros
+function registrarErro(mensagem) {
+    const dataHora = new Date().toLocaleString('pt-BR');
+    const logMessage = `[${dataHora}] - ${mensagem}\n`;
+
+    const caminhoLog = path.join(__dirname, 'logs', 'erros.log');
+
+    // Garante que a pasta logs exista
+    if (!fs.existsSync(path.join(__dirname, 'logs'))) {
+        fs.mkdirSync(path.join(__dirname, 'logs'));
+    }
+
+    fs.appendFile(caminhoLog, logMessage, (err) => {
+        if (err) console.error('Erro ao escrever no log:', err);
+    });
+}
 
 
 
@@ -84,6 +103,7 @@ async function inicializarTabelas() {
         dia TEXT,
         horario TEXT,
         funcionario_id INTEGER,
+        finalizado INTEGER DEFAULT 0,
         FOREIGN KEY (cliente_id) REFERENCES clientes(id),
         FOREIGN KEY (funcionario_id) REFERENCES funcionarios(id)
       );
@@ -177,6 +197,21 @@ async function atualizarEstruturaBanco() {
     }
     await db.close();
   }
+
+  async function atualizarColunaFinalizado() {
+    const db = await abrirBanco();
+    try {
+      await db.run('ALTER TABLE agendamentos ADD COLUMN finalizado INTEGER DEFAULT 0;');
+      console.log('Coluna finalizado adicionada.');
+    } catch (error) {
+      if (error.message.includes('duplicate column name')) {
+      } else {
+        console.error('Erro ao adicionar coluna finalizado:', error.message);
+      }
+    }
+    await db.close();
+  }
+  
   
   // Função para inserir especialidades padrão no banco
   async function inserirEspecialidadesPadrao() {
@@ -192,9 +227,10 @@ async function atualizarEstruturaBanco() {
   (async () => {
     await inicializarUsuarios();
     await inicializarTabelas();
-    await atualizarEstruturaBanco(); // Agora definida
+    await atualizarColunaFinalizado();
+    await atualizarEstruturaBanco(); 
     await inserirProcedimentosIniciais();
-    await inserirEspecialidadesPadrao(); // Agora definida
+    await inserirEspecialidadesPadrao();
   })();
   
   
@@ -253,91 +289,104 @@ app.post('/alterar-senha', requireLogin, async (req, res) => {
 });
 
 app.get('/agendamentos', requireLogin, async (req, res) => {
-    const { filtro, valorTexto, valorProcedimento, valorData, valorFuncionario } = req.query;
+  const { filtro, valorTexto, valorProcedimento, valorData, valorFuncionario } = req.query;
 
-    let whereClauses = [];
-    let params = [];
+  let whereClauses = [];
+  let params = [];
 
-    if (filtro) {
-        if (filtro === 'nome') {
-            whereClauses.push('c.nome LIKE ?');
-            params.push(`%${valorTexto}%`);
-        } else if (filtro === 'cpf') {
-            whereClauses.push('c.cpf LIKE ?');
-            params.push(`%${valorTexto.replace(/\D/g, '')}%`);
-        } else if (filtro === 'procedimento') {
-            whereClauses.push('p.id = ?');
-            params.push(valorProcedimento);
-        } else if (filtro === 'dia') {
-            whereClauses.push('a.dia = ?');
-            params.push(valorData);
-        } else if (filtro === 'funcionario') {
-            whereClauses.push('a.funcionario_id = ?');
-            params.push(valorFuncionario);
-        }
-    }
+  if (filtro) {
+      if (filtro === 'nome') {
+          whereClauses.push('c.nome LIKE ?');
+          params.push(`%${valorTexto}%`);
+      } else if (filtro === 'cpf') {
+          whereClauses.push('c.cpf LIKE ?');
+          params.push(`%${valorTexto.replace(/\D/g, '')}%`);
+      } else if (filtro === 'procedimento') {
+          whereClauses.push(`a.id IN (
+              SELECT agendamento_id
+              FROM agendamento_procedimentos
+              WHERE procedimento_id = ?
+          )`);
+          params.push(valorProcedimento);
+      } else if (filtro === 'dia') {
+          whereClauses.push('a.dia = ?');
+          params.push(valorData);
+      } else if (filtro === 'funcionario') {
+          whereClauses.push('a.funcionario_id = ?');
+          params.push(valorFuncionario);
+      }
+  }
+  whereClauses.push('a.finalizado = 0'); 
 
-    let where = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : '';
+  let where = 'WHERE ' + whereClauses.join(' AND ');
+  
+  
+  const sql = `
+SELECT 
+    a.id AS agendamento_id,
+    c.nome AS cliente_nome,
+    c.cpf AS cliente_cpf,
+    a.dia,
+    a.horario,
+    f.nome AS funcionario_nome,
+    IFNULL(GROUP_CONCAT(DISTINCT p.nome), '') AS nomes_procedimentos,
+    IFNULL(SUM(p.valor), 0) AS valor_total
+FROM agendamentos a
+JOIN clientes c ON a.cliente_id = c.id
+LEFT JOIN funcionarios f ON a.funcionario_id = f.id
+LEFT JOIN agendamento_procedimentos ap ON ap.agendamento_id = a.id
+LEFT JOIN procedimentos p ON p.id = ap.procedimento_id
+${where}
+GROUP BY a.id
+ORDER BY a.dia, a.horario
 
-    const sql = `
-        SELECT 
-            a.id AS agendamento_id,
-            c.nome AS cliente_nome,
-            c.cpf AS cliente_cpf,
-            a.dia,
-            a.horario,
-            f.nome AS funcionario_nome,
-            f.especialidade AS funcionario_especialidade,
-            IFNULL(GROUP_CONCAT(p.nome, ', '), '') AS nomes_procedimentos,
-            IFNULL(SUM(p.valor), 0) AS valor_total
-        FROM agendamentos a
-        JOIN clientes c ON a.cliente_id = c.id
-        LEFT JOIN funcionarios f ON a.funcionario_id = f.id
-        LEFT JOIN agendamento_procedimentos ap ON ap.agendamento_id = a.id
-        LEFT JOIN procedimentos p ON p.id = ap.procedimento_id
-        ${where}
-        GROUP BY a.id
-    `;
+  `;
 
-    const db = await abrirBanco();
-    const ags = await db.all(sql, params);
-    const listaProcedimentos = await db.all('SELECT * FROM procedimentos');
-    const funcionarios = await db.all('SELECT * FROM funcionarios');
-    await db.close();
+  const db = await abrirBanco();
+  const ags = await db.all(sql, params);
+  const listaProcedimentos = await db.all('SELECT * FROM procedimentos');
+  const funcionarios = await db.all('SELECT * FROM funcionarios');
+  await db.close();
 
-    ags.forEach(a => {
-        a.cliente_cpf = formatarCPF(a.cliente_cpf);
-    });
+  ags.forEach(a => {
+      a.cliente_cpf = formatarCPF(a.cliente_cpf);
+  });
 
-    const msg = req.session.msg;
-    delete req.session.msg;
-    
-    res.render('agendamentos', {
-        ags,
-        listaProcedimentos,
-        funcionarios,
-        filtro,
-        valorTexto,
-        valorProcedimento,
-        valorData,
-        valorFuncionario,
-        msg,
-        valor: filtro === 'nome' || filtro === 'cpf' ? valorTexto
-            : filtro === 'procedimento' ? valorProcedimento
-            : filtro === 'dia' ? valorData
-            : filtro === 'funcionario' ? valorFuncionario
-            : ''
-    });
+  const msg = req.session.msg || null;
+  delete req.session.msg;
+
+  res.render('agendamentos', {
+      ags: ags || [],
+      listaProcedimentos: listaProcedimentos || [],
+      funcionarios: funcionarios || [],
+      filtro: filtro || '',
+      valorTexto: valorTexto || '',
+      valorProcedimento: valorProcedimento || '',
+      valorData: valorData || '',
+      valorFuncionario: valorFuncionario || '',
+      msg: msg,
+      valor: filtro === 'nome' || filtro === 'cpf' ? valorTexto
+           : filtro === 'procedimento' ? valorProcedimento
+           : filtro === 'dia' ? valorData
+           : filtro === 'funcionario' ? valorFuncionario
+           : ''
+  });
 });
+
 
 app.get('/novo-agendamento', requireLogin, async (req, res) => {
-    const db = await abrirBanco();
-    const procedimentos = await db.all('SELECT * FROM procedimentos');
-    const funcionarios = await db.all('SELECT * FROM funcionarios');
-    await db.close();
-    res.render('novoAgendamento', { procedimentos, funcionarios, msg: null });
+  const db = await abrirBanco();
+  const procedimentos = await db.all('SELECT * FROM procedimentos');
+  const funcionarios = await db.all('SELECT * FROM funcionarios');
+  await db.close();
+  res.render('novoAgendamento', {
+    procedimentos: procedimentos || [],
+    funcionarios: funcionarios || [],
+    msg: null // <-- Corrigido aqui
+  });
 });
 
+    
 app.post('/novo-agendamento', requireLogin, async (req, res) => {
     let { nome, cpf, dia, horario, procedimento_id, funcionario_id } = req.body;
 
@@ -408,10 +457,11 @@ app.get('/funcionarios', requireLogin, async (req, res) => {
     await db.close();
 
     res.render('funcionarios', {
-        funcionarios,
-        especialidades,
-        msg: req.session.msg || null
-    });
+      funcionarios: funcionarios || [],
+      especialidades: especialidades || [],
+      msg: req.session.msg || null
+  });
+  
 
     delete req.session.msg;
 });
@@ -894,8 +944,11 @@ app.post('/editar-agendamento/:id', requireLogin, async (req, res) => {
               const msg = req.session.msg || null;
               delete req.session.msg;
             
-              res.render('procedimentos', { procedimentos, msg });
+              res.render('procedimentos', {
+                procedimentos: procedimentos || [],
+                msg: msg || null
             });
+          });
             
             
 
@@ -1011,94 +1064,384 @@ app.post('/editar-agendamento/:id', requireLogin, async (req, res) => {
 
       app.get('/relatorios', requireLogin, async (req, res) => {
         const db = await abrirBanco();
+        const {
+          filtro,
+          valorTexto,
+          valorProcedimento,
+          valorFuncionario,
+          valorMin,
+          valorMax,
+          valorMinGlobal,
+          valorMaxGlobal,
+          dataInicio,
+          dataFim,
+          pagina = 1 // Página atual, padrão 1
+        } = req.query;
       
-        const funcionarios = await db.all('SELECT id, nome FROM funcionarios');
-        const procedimentos = await db.all('SELECT id, nome FROM procedimentos');
+        const itensPorPagina = 10; // 🔥 Número de registros por página
+        const offset = (pagina - 1) * itensPorPagina;
       
-        const { dataInicio, dataFim, funcionario_id, procedimento_id } = req.query;
-      
-        let filtros = {
-          dataInicio: dataInicio || '',
-          dataFim: dataFim || '',
-          funcionarioId: funcionario_id || '',
-          procedimentoId: procedimento_id || ''
-        };
-      
-        let query = `
-          SELECT 
-            a.id, 
-            a.dia, 
-            a.horario, 
-            c.nome AS cliente_nome, 
-            f.nome AS funcionario_nome
-          FROM agendamentos a
-          JOIN clientes c ON c.id = a.cliente_id
-          JOIN funcionarios f ON f.id = a.funcionario_id
-          WHERE 1=1
-        `;
+        let whereClauses = [];
         let params = [];
       
-        if (dataInicio) {
-          query += ' AND a.dia >= ?';
-          params.push(dataInicio);
-        }
-      
-        if (dataFim) {
-          query += ' AND a.dia <= ?';
-          params.push(dataFim);
-        }
-      
-        if (funcionario_id) {
-          query += ' AND a.funcionario_id = ?';
-          params.push(funcionario_id);
-        }
-      
-        if (procedimento_id) {
-          query += `
-            AND a.id IN (
-              SELECT agendamento_id
-              FROM agendamento_procedimentos
-              WHERE procedimento_id = ?
-            )
-          `;
-          params.push(procedimento_id);
-        }
-      
-        query += ' ORDER BY a.dia, a.horario';
-      
-        const agendamentos = await db.all(query, params);
-      
-        for (const agendamento of agendamentos) {
-          let procQuery = `
-            SELECT p.nome, p.valor
-            FROM agendamento_procedimentos ap
-            JOIN procedimentos p ON p.id = ap.procedimento_id
-            WHERE ap.agendamento_id = ?
-          `;
-          const procParams = [agendamento.id];
-        
-          if (procedimento_id) {
-            procQuery += ' AND p.id = ?';
-            procParams.push(procedimento_id);
+        if (filtro) {
+          if (filtro === 'nome') {
+            whereClauses.push('c.nome LIKE ?');
+            params.push(`%${valorTexto}%`);
+          } else if (filtro === 'cpf') {
+            whereClauses.push('c.cpf LIKE ?');
+            params.push(`%${valorTexto.replace(/\D/g, '')}%`);
+          } else if (filtro === 'procedimento') {
+            whereClauses.push(`a.id IN (
+              SELECT agendamento_id FROM agendamento_procedimentos WHERE procedimento_id = ?
+            )`);
+            params.push(valorProcedimento);
+          } else if (filtro === 'funcionario') {
+            whereClauses.push('a.funcionario_id = ?');
+            params.push(valorFuncionario);
+          } else if (filtro === 'valor') {
+            if (valorMin) {
+              whereClauses.push(`(
+                SELECT SUM(p.valor)
+                FROM agendamento_procedimentos ap
+                JOIN procedimentos p ON ap.procedimento_id = p.id
+                WHERE ap.agendamento_id = a.id
+              ) >= ?`);
+              params.push(valorMin);
+            }
+            if (valorMax) {
+              whereClauses.push(`(
+                SELECT SUM(p.valor)
+                FROM agendamento_procedimentos ap
+                JOIN procedimentos p ON ap.procedimento_id = p.id
+                WHERE ap.agendamento_id = a.id
+              ) <= ?`);
+              params.push(valorMax);
+            }
+          } else if (filtro === 'data') {
+            if (dataInicio) {
+              whereClauses.push('a.dia >= ?');
+              params.push(dataInicio);
+            }
+            if (dataFim) {
+              whereClauses.push('a.dia <= ?');
+              params.push(dataFim);
+            }
           }
-        
-          const proc = await db.all(procQuery, procParams);
-        
-          agendamento.procedimentos = proc.map(p => `${p.nome} (R$ ${p.valor.toFixed(2)})`).join(', ');
-          agendamento.valor_total = proc.reduce((total, p) => total + (p.valor || 0), 0);
         }
-        
+      
+        whereClauses.push('a.finalizado = 1');
+      
+        const where = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : '';
+      
+        // 1º - Buscar total de registros
+        const totalAgendamentosRow = await db.get(`
+          SELECT COUNT(DISTINCT a.id) AS total
+          FROM agendamentos a
+          JOIN clientes c ON a.cliente_id = c.id
+          LEFT JOIN funcionarios f ON a.funcionario_id = f.id
+          LEFT JOIN agendamento_procedimentos ap ON ap.agendamento_id = a.id
+          LEFT JOIN procedimentos p ON p.id = ap.procedimento_id
+          ${where}
+        `, params);
+      
+        const totalAgendamentos = totalAgendamentosRow.total || 0;
+        const temProximaPagina = (pagina * itensPorPagina) < totalAgendamentos;
+      
+        // 2º - Buscar agendamentos da página atual
+        const agendamentos = await db.all(`
+          SELECT 
+            a.id,
+            c.nome AS cliente_nome,
+            f.nome AS funcionario_nome,
+            a.dia,
+            a.horario,
+            SUM(p.valor) as valor_total
+          FROM agendamentos a
+          JOIN clientes c ON a.cliente_id = c.id
+          LEFT JOIN funcionarios f ON a.funcionario_id = f.id
+          LEFT JOIN agendamento_procedimentos ap ON ap.agendamento_id = a.id
+          LEFT JOIN procedimentos p ON p.id = ap.procedimento_id
+          ${where}
+          GROUP BY a.id
+          ORDER BY a.dia ASC, a.horario ASC
+          LIMIT ${itensPorPagina} OFFSET ${offset}
+        `, params);
+      
+        const procedimentos = await db.all('SELECT id, nome FROM procedimentos');
+        const funcionarios = await db.all('SELECT id, nome FROM funcionarios');
       
         await db.close();
       
         res.render('relatorios', {
-          filtros,
-          funcionarios,
+          agendamentos,
           procedimentos,
-          agendamentos
+          funcionarios,
+          filtros: req.query,
+          filtro: filtro || '',
+          valorTexto: valorTexto || '',
+          valorProcedimento: valorProcedimento || '',
+          valorFuncionario: valorFuncionario || '',
+          valorMin: valorMin || '',
+          valorMax: valorMax || '',
+          valorMinGlobal: valorMinGlobal || '',
+          valorMaxGlobal: valorMaxGlobal || '',
+          dataInicio: dataInicio || '',
+          dataFim: dataFim || '',
+          paginaAtual: parseInt(pagina),
+          temProximaPagina
         });
       });
+      
     
+    const PDFDocument = require('pdfkit'); // não esqueça de garantir esse import lá em cima!
+
+    app.get('/relatorios/pdf', requireLogin, async (req, res) => {
+        const db = await abrirBanco();
+    
+        const { dataInicio, dataFim, funcionario_id, procedimento_id } = req.query;
+    
+        let whereClauses = [];
+        let params = [];
+    
+        if (dataInicio) {
+            whereClauses.push('a.dia >= ?');
+            params.push(dataInicio);
+        }
+        if (dataFim) {
+            whereClauses.push('a.dia <= ?');
+            params.push(dataFim);
+        }
+        if (funcionario_id) {
+            whereClauses.push('a.funcionario_id = ?');
+            params.push(funcionario_id);
+        }
+        if (procedimento_id) {
+            whereClauses.push(`a.id IN (
+                SELECT agendamento_id FROM agendamento_procedimentos WHERE procedimento_id = ?
+            )`);
+            params.push(procedimento_id);
+        }
+    
+        const where = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : '';
+    
+        const sql = `
+            SELECT 
+                a.id,
+                a.dia,
+                a.horario,
+                c.nome AS cliente_nome,
+                f.nome AS funcionario_nome,
+                IFNULL(SUM(p.valor), 0) AS valor_total
+            FROM agendamentos a
+            JOIN clientes c ON c.id = a.cliente_id
+            JOIN funcionarios f ON f.id = a.funcionario_id
+            LEFT JOIN agendamento_procedimentos ap ON ap.agendamento_id = a.id
+            LEFT JOIN procedimentos p ON p.id = ap.procedimento_id
+            ${where}
+            GROUP BY a.id
+            ORDER BY a.dia, a.horario
+        `;
+    
+        const agendamentos = await db.all(sql, params);
+        await db.close();
+    
+        // Criar o documento PDF
+        const doc = new PDFDocument();
+        res.setHeader('Content-disposition', 'attachment; filename="relatorio-agendamentos.pdf"');
+        res.setHeader('Content-type', 'application/pdf');
+        doc.pipe(res);
+    
+        // Cabeçalho
+        doc.fontSize(20).text('Relatório de Agendamentos', { align: 'center' });
+        doc.moveDown();
+    
+        // Listar agendamentos
+        agendamentos.forEach((a, idx) => {
+            doc.fontSize(12).text(`Cliente: ${a.cliente_nome}`);
+            doc.text(`Funcionário: ${a.funcionario_nome}`);
+            doc.text(`Data: ${a.dia}`);
+            doc.text(`Horário: ${a.horario}`);
+            doc.text(`Valor Total: R$ ${parseFloat(a.valor_total || 0).toFixed(2)}`);
+            doc.moveDown();
+            if (idx !== agendamentos.length - 1) doc.moveDown(); // espaço entre registros
+        });
+    
+        // Resumo Financeiro
+        const valorTotalGeral = agendamentos.reduce((acc, a) => acc + (a.valor_total || 0), 0);
+    
+        doc.moveDown(2);
+        doc.fontSize(14).text('Resumo Financeiro', { underline: true });
+        doc.moveDown();
+    
+        doc.fontSize(12).text(`Total de agendamentos: ${agendamentos.length}`);
+        doc.text(`Valor total: R$ ${valorTotalGeral.toFixed(2)}`);
+    
+        doc.end();
+    });
+    
+    const ExcelJS = require('exceljs'); // não esqueça de garantir esse import lá em cima!
+
+app.get('/relatorios/excel', requireLogin, async (req, res) => {
+    const db = await abrirBanco();
+
+    const { dataInicio, dataFim, funcionario_id, procedimento_id } = req.query;
+
+    let whereClauses = [];
+    let params = [];
+
+    if (dataInicio) {
+        whereClauses.push('a.dia >= ?');
+        params.push(dataInicio);
+    }
+    if (dataFim) {
+        whereClauses.push('a.dia <= ?');
+        params.push(dataFim);
+    }
+    if (funcionario_id) {
+        whereClauses.push('a.funcionario_id = ?');
+        params.push(funcionario_id);
+    }
+    if (procedimento_id) {
+        whereClauses.push(`a.id IN (
+            SELECT agendamento_id FROM agendamento_procedimentos WHERE procedimento_id = ?
+        )`);
+        params.push(procedimento_id);
+    }
+
+    const where = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : '';
+
+    const sql = `
+        SELECT 
+            a.id,
+            a.dia,
+            a.horario,
+            c.nome AS cliente_nome,
+            f.nome AS funcionario_nome,
+            IFNULL(SUM(p.valor), 0) AS valor_total
+        FROM agendamentos a
+        JOIN clientes c ON c.id = a.cliente_id
+        JOIN funcionarios f ON f.id = a.funcionario_id
+        LEFT JOIN agendamento_procedimentos ap ON ap.agendamento_id = a.id
+        LEFT JOIN procedimentos p ON p.id = ap.procedimento_id
+        ${where}
+        GROUP BY a.id
+        ORDER BY a.dia, a.horario
+    `;
+
+    const agendamentos = await db.all(sql, params);
+    await db.close();
+
+    // Criar o Excel
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Relatório de Agendamentos');
+
+    worksheet.columns = [
+        { header: 'Cliente', key: 'cliente_nome', width: 30 },
+        { header: 'Funcionário', key: 'funcionario_nome', width: 30 },
+        { header: 'Data', key: 'dia', width: 15 },
+        { header: 'Horário', key: 'horario', width: 10 },
+        { header: 'Valor Total', key: 'valor_total', width: 15 }
+    ];
+
+    agendamentos.forEach(a => {
+        worksheet.addRow({
+            cliente_nome: a.cliente_nome,
+            funcionario_nome: a.funcionario_nome,
+            dia: a.dia,
+            horario: a.horario,
+            valor_total: parseFloat(a.valor_total || 0).toFixed(2)
+        });
+    });
+
+    // Espaço e resumo
+    worksheet.addRow([]);
+    worksheet.addRow(['Resumo Financeiro']);
+    worksheet.addRow(['Total de agendamentos', agendamentos.length]);
+    worksheet.addRow(['Valor total', agendamentos.reduce((acc, a) => acc + (a.valor_total || 0), 0).toFixed(2)]);
+
+    // Estilizar resumo
+    const lastRow = worksheet.lastRow.number;
+    worksheet.getRow(lastRow - 2).font = { bold: true };
+    worksheet.getRow(lastRow - 1).font = { bold: true };
+    worksheet.getRow(lastRow).font = { bold: true };
+
+    // Exportar o arquivo
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="relatorio-agendamentos.xlsx"');
+
+    await workbook.xlsx.write(res);
+    res.end();
+});
+
+
+app.post('/agendamentos/finalizar/:id', requireLogin, async (req, res) => {
+  const db = await abrirBanco(); // <-- ISSO AQUI É FUNDAMENTAL
+  const id = req.params.id;
+  try {
+    await db.run('UPDATE agendamentos SET finalizado = 1 WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erro ao finalizar agendamento:', error.message);
+    res.json({ success: false });
+  } finally {
+    await db.close(); // Boa prática: fechar o banco depois
+  }
+});
+
+app.get('/escolherHorarioFuncionario', requireLogin, async (req, res) => {
+  const { dia, funcionario_id } = req.query;
+  const db = await abrirBanco();
+
+  const diaSemana = dayjs(dia).format('dddd').toLowerCase();
+  const expediente = await db.get(`
+    SELECT inicio, fim
+    FROM horarios_expeds
+    WHERE funcionario_id = ? AND dia_semana = ?
+  `, [funcionario_id, diaSemana]);
+
+  if (!expediente) {
+    await db.close();
+    return res.send('Funcionário não tem expediente neste dia.');
+  }
+
+  let horarios = [];
+  let atual = dayjs(`${dia} ${expediente.inicio}`);
+  const fim = dayjs(`${dia} ${expediente.fim}`);
+
+  while (atual.isBefore(fim)) {
+    horarios.push(atual.format('HH:mm'));
+    atual = atual.add(30, 'minute');
+  }
+
+  const procedimentos = await db.all('SELECT id, nome, duracao FROM procedimentos');
+
+  await db.close();
+
+  res.render('escolherHorarioFuncionario', {
+    dia,
+    funcionario_id,
+    horarios,
+    fimExpediente: expediente.fim,
+    procedimentos
+  });
+});
+
+app.post('/excluir-especialidade/:id', requireLogin, async (req, res) => {
+  const db = await abrirBanco();
+  const id = req.params.id;
+
+  try {
+    await db.run('DELETE FROM especialidades WHERE id = ?', [id]);
+    res.redirect('/especialidades'); // volta pra lista depois de excluir
+  } catch (error) {
+    console.error('Erro ao excluir especialidade:', error.message);
+    res.send('Erro ao excluir especialidade.');
+  } finally {
+    await db.close();
+  }
+});
+
       
 app.get('/', (req, res) => res.redirect('/agendamentos'));
 
