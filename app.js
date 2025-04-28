@@ -70,6 +70,9 @@ async function inicializarUsuarios() {
     
 }
 
+
+
+
 async function inicializarTabelas() {
     const db = await abrirBanco();
   
@@ -155,7 +158,16 @@ async function inicializarTabelas() {
           );
         `);
         
-  
+        await db.run(`
+          CREATE TABLE IF NOT EXISTS procedimento_especialidade (
+            procedimento_id INTEGER,
+            especialidade_id INTEGER,
+            PRIMARY KEY (procedimento_id, especialidade_id),
+            FOREIGN KEY (procedimento_id) REFERENCES procedimentos(id),
+            FOREIGN KEY (especialidade_id) REFERENCES especialidades(id)
+          );
+        `);
+        
   }
       
 async function inserirProcedimentosIniciais() {
