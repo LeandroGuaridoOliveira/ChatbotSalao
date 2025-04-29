@@ -19,20 +19,26 @@
   async function verificarEmailExistente(event) {
     event.preventDefault();
 
+    const form = event.target.form;
     const email = document.querySelector('input[name="email_admin"]').value;
 
     const res = await fetch(`/verificar-email?email=${encodeURIComponent(email)}`);
     const data = await res.json();
 
     if (data.existe) {
-      alert('Já existe uma conta com esse e-mail.');
-      return false;
+      Swal.fire({
+        icon: 'error',
+        title: 'E-mail já em uso',
+        text: 'Já existe uma conta cadastrada com este e-mail.'
+      });
+      return false; // impede envio
     }
 
-    // Enviar formulário se tudo ok
-    event.target.form.submit();
+    // Agora envia o formulário manualmente
+    form.submit();
   }
 </script>
+
 
 </head>
 <body>

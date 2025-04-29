@@ -4,11 +4,12 @@
   <meta charset="UTF-8">
   <title>Novo Funcionário</title>
   <style>
+
     body {
-      background-color: #f2f2f2;
+      background-color: #f5f5f5;
       font-family: Arial, sans-serif;
       margin: 0;
-      padding: 20px;
+      padding: 0;
       display: flex;
       justify-content: center;
       align-items: flex-start;
@@ -17,11 +18,12 @@
 
     .container {
       background: white;
+      margin-top: 40px;
       padding: 30px;
       border-radius: 10px;
       box-shadow: 0 4px 10px rgba(0,0,0,0.1);
       width: 100%;
-      max-width: 600px;
+      max-width: 500px;
     }
 
     h1 {
@@ -33,123 +35,163 @@
     form {
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 15px;
     }
 
     label {
       font-weight: bold;
-      margin-bottom: 5px;
       color: #333;
     }
 
-    input[type="text"] {
+    input[type="text"], input[type="email"], input[type="tel"] {
       padding: 10px;
+      border-radius: 5px;
       border: 1px solid #ccc;
-      border-radius: 6px;
-      font-size: 16px;
+      width: 100%;
     }
+    .checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
 
-    .especialidades {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 10px;
-    }
+.checkbox-item {
+  position: relative;
+}
 
-    .especialidade-item {
-      background-color: #eee;
-      padding: 8px 12px;
-      border-radius: 20px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      user-select: none;
-      transition: background-color 0.3s;
-    }
+.checkbox-item input[type="checkbox"] {
+  display: none;
+}
 
-    .especialidade-item.selected {
+.checkbox-label {
+  border: 2px solid #7e57c2;
+  border-radius: 20px;
+  padding: 8px 16px;
+  color: #7e57c2;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-block;
+}
+
+.checkbox-item input[type="checkbox"]:checked + .checkbox-label {
+  background-color: #7e57c2;
+  color: white;
+}
+
+
+    .btn-cadastrar {
       background-color: #6f42c1;
       color: white;
-    }
-
-    .botoes {
-      display: flex;
-      justify-content: center;
-      gap: 15px;
-      margin-top: 30px;
-    }
-
-    .btn {
-      padding: 12px 20px;
+      padding: 10px;
       font-size: 16px;
+      border-radius: 6px;
       border: none;
-      border-radius: 6px;
       cursor: pointer;
       transition: background-color 0.3s;
-      text-decoration: none;
-      text-align: center;
     }
 
-    .btn-salvar {
-      background-color: #6f42c1;
-      color: white;
-    }
-
-    .btn-salvar:hover {
+    .btn-cadastrar:hover {
       background-color: #5a34a1;
     }
 
-    .btn-voltar {
-      background-color: #ccc;
-      color: #333;
+    .msg {
+      color: red;
+      text-align: center;
     }
 
-    .btn-voltar:hover {
-      background-color: #bbb;
-    }
+    input[type="checkbox"] {
+  transform: scale(1.2);
+  margin-right: 6px;
+}
+
   </style>
 </head>
 <body>
-
   <div class="container">
     <h1>Novo Funcionário</h1>
 
-    <form method="POST" action="/novo-funcionario">
-      <div>
-        <label for="nome">Nome do Funcionário:</label>
-        <input type="text" name="nome" id="nome" placeholder="Digite o nome" required>
-      </div>
+    <% if (msg) { %>
+      <div class="msg"><%= msg %></div>
+    <% } %>
 
+    <form action="/novo-funcionario" method="POST">
       <div>
-        <label>Especialidades:</label>
-        <div class="especialidades">
-          <% especialidades.forEach(e => { %>
-            <label class="especialidade-item">
-              <input type="checkbox" name="especialidade_ids" value="<%= e.id %>" style="display:none;">
-              <span><%= e.nome %></span>
-            </label>
-          <% }) %>
-        </div>
+        <label for="nome">Nome:</label>
+        <input type="text" id="nome" name="nome" required>
       </div>
-
-      <div class="botoes">
-        <button type="submit" class="btn btn-salvar">Cadastrar</button>
-        <a href="/funcionarios" class="btn btn-voltar">Voltar à Lista</a>
+    
+      <div>
+        <label for="telefone">Telefone:</label>
+        <input type="text" id="telefone" name="telefone" required maxlength="15" placeholder="(11)98765-4321">
       </div>
+    
+      <div>
+        <label for="email">E-mail:</label>
+        <input type="email" id="email" name="email" required>
+      </div>
+    
+      <label>Especialidades:</label>
+      <div class="checkbox-group">
+        <% especialidades.forEach(e => { %>
+          <div class="checkbox-item">
+            <input type="checkbox" id="esp-<%= e.id %>" name="especialidade_ids[]" value="<%= e.id %>">
+            <label for="esp-<%= e.id %>" class="checkbox-label"><%= e.nome %></label>
+          </div>
+        <% }) %>
+      </div>
+    
+      <br>
+    
+      <button type="submit" style="
+        background-color: #7e57c2;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 20px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      ">
+        Cadastrar Funcionário
+      </button>
     </form>
-  </div>
-
-  <script>
-    // Lógica para marcar visualmente os checkboxes
-    document.querySelectorAll('.especialidade-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const checkbox = item.querySelector('input[type="checkbox"]');
-        checkbox.checked = !checkbox.checked;
-        item.classList.toggle('selected', checkbox.checked);
+    
+    <!-- ✅ Máscara de telefone -->
+    <script>
+      const telefoneInput = document.getElementById('telefone');
+    
+      telefoneInput.addEventListener('input', () => {
+        let valor = telefoneInput.value.replace(/\D/g, '');
+    
+        if (valor.length > 11) valor = valor.substring(0, 11);
+    
+        if (valor.length > 6) {
+          telefoneInput.value = `(${valor.substring(0, 2)})${valor.substring(2, 7)}-${valor.substring(7)}`;
+        } else if (valor.length > 2) {
+          telefoneInput.value = `(${valor.substring(0, 2)})${valor.substring(2)}`;
+        } else {
+          telefoneInput.value = valor;
+        }
       });
-    });
-  </script>
+    </script>
+    
+    <a href="/funcionarios" style="
+        background-color: #7e57c2;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 20px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      ">
+  ← Voltar para Funcionários
+</a>
 
+    
 </body>
 </html>

@@ -1,167 +1,54 @@
 const qrcode = require('qrcode-terminal');
-const { Client } = require('whatsapp-web.js');
+const { Client, LocalAuth } = require('whatsapp-web.js'); // ✅ LocalAuth adicionado
 const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
 
+// ✅ Cria o client com autenticação persistente
+const client = new Client({
+  authStrategy: new LocalAuth(),
+  puppeteer: { headless: true } // coloque false se quiser ver o navegador
+});
+
+// ✅ Mostra o QR Code no terminal
+client.on('qr', qr => {
+  console.log('📱 Escaneie o QR code para logar no WhatsApp:');
+  qrcode.generate(qr, { small: true });
+});
+
+// ✅ Informa quando o bot estiver pronto
+client.on('ready', () => {
+  console.log('✅ Bot do WhatsApp está pronto!');
+});
+
+// ✅ Exemplo de resposta a mensagem
+client.on('message', async msg => {
+  if (msg.body.toLowerCase() === 'oi') {
+    await msg.reply('Olá! Como posso te ajudar?');
+  }
+});
+
+// ✅ Inicializa o bot
+client.initialize();
+
+// ✅ Função de conexão com o banco com retry
 async function abrirBancoComRetry(tentativas = 10, delayMs = 200) {
-    for (let i = 0; i < tentativas; i++) {
-        try {
-            const db = await open({
-                filename: './banco.db',
-                driver: sqlite3.Database
-            });
-            return db;
-        } catch (err) {
-            if (err.code === 'SQLITE_BUSY') {
-                await new Promise(res => setTimeout(res, delayMs));
-            } else {
-                throw err;
-            }
-        }
+  for (let i = 0; i < tentativas; i++) {
+    try {
+      const db = await open({
+        filename: './banco.db',
+        driver: sqlite3.Database
+      });
+      return db;
+    } catch (err) {
+      if (err.code === 'SQLITE_BUSY') {
+        await new Promise(res => setTimeout(res, delayMs));
+      } else {
+        throw err;
+      }
     }
-    throw new Error('Não foi possível abrir o banco de dados (SQLITE_BUSY).');
+  }
+  throw new Error('Não foi possível abrir o banco de dados (SQLITE_BUSY).');
 }
-
-async function inicializarTabelas() {
-    const db = await abrirBancoComRetry();
-
-    await db.run(`
-        CREATE TABLE IF NOT EXISTS clientes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT,
-            cpf TEXT UNIQUE
-        );
-    `);
-
-    await db.run(`
-        CREATE TABLE IF NOT EXISTS procedimentos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT,
-            valor REAL
-        );
-    `);
-
-    await db.run(`
-        CREATE TABLE IF NOT EXISTS funcionarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            especialidade TEXT,
-            ativo INTEGER DEFAULT 1
-        );
-    `);
-
-    await db.run(`
-        CREATE TABLE IF NOT EXISTS agendamentos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente_id INTEGER,
-            funcionario_id INTEGER,
-            dia TEXT,
-            horario TEXT,
-            FOREIGN KEY (cliente_id) REFERENCES clientes(id),
-            FOREIGN KEY (funcionario_id) REFERENCES funcionarios(id)
-        );
-    `);
-
-    await db.run(`
-        CREATE TABLE IF NOT EXISTS agendamento_procedimentos (
-            agendamento_id INTEGER,
-            procedimento_id INTEGER,
-            FOREIGN KEY (agendamento_id) REFERENCES agendamentos(id),
-            FOREIGN KEY (procedimento_id) REFERENCES procedimentos(id)
-        );
-    `);
-
-    await db.close();
-}
-
-async function inserirProcedimentosIniciais() {
-    const db = await abrirBancoComRetry();
-    const procedimentos = [
-        { nome: "Corte Feminino", valor: 60 },
-        { nome: "Corte Masculino", valor: 40 },
-        { nome: "Escova", valor: 50 },
-        { nome: "Manicure", valor: 30 },
-        { nome: "Pedicure", valor: 35 }
-    ];
-    const row = await db.get('SELECT COUNT(*) as total FROM procedimentos');
-    if (row.total === 0) {
-        for (const p of procedimentos) {
-            await db.run('INSERT INTO procedimentos (nome, valor) VALUES (?, ?)', [p.nome, p.valor]);
-        }
-    }
-    await db.close();
-}
-
-async function listarProcedimentos() {
-    const db = await abrirBancoComRetry();
-    const procedimentos = await db.all('SELECT * FROM procedimentos');
-    await db.close();
-    return procedimentos;
-}
-
-async function inserirOuObterCliente(nome, cpf) {
-    const db = await abrirBancoComRetry();
-    let cliente = await db.get('SELECT * FROM clientes WHERE cpf = ?', [cpf]);
-    if (!cliente) {
-        await db.run('INSERT INTO clientes (nome, cpf) VALUES (?, ?)', [nome, cpf]);
-        cliente = await db.get('SELECT * FROM clientes WHERE cpf = ?', [cpf]);
-    }
-    await db.close();
-    return cliente;
-}
-
-async function inserirAgendamento(cliente_id, procedimento_id, dia, horario) {
-    const db = await abrirBancoComRetry();
-    await db.run(
-        `INSERT INTO agendamentos (cliente_id, procedimento_id, dia, horario) VALUES (?, ?, ?, ?)`,
-        [cliente_id, procedimento_id, dia, horario]
-    );
-    await db.close();
-}
-
-async function buscarProcedimentoPorId(id) {
-    const db = await abrirBancoComRetry();
-    const procedimento = await db.get('SELECT * FROM procedimentos WHERE id = ?', [id]);
-    await db.close();
-    return procedimento;
-}
-
-async function listarAgendamentosCompletos() {
-    const db = await abrirBancoComRetry();
-    const agendamentos = await db.all(`
-        SELECT 
-            a.id AS agendamento_id,
-            c.nome AS cliente_nome,
-            c.cpf AS cliente_cpf,
-            a.dia,
-            a.horario,
-            IFNULL(GROUP_CONCAT(p.nome, ', '), '') AS nomes_procedimentos,
-            IFNULL(SUM(p.valor), 0) AS valor_total
-        FROM agendamentos a
-        JOIN clientes c ON a.cliente_id = c.id
-        LEFT JOIN agendamento_procedimentos ap ON ap.agendamento_id = a.id
-        LEFT JOIN procedimentos p ON p.id = ap.procedimento_id
-        GROUP BY a.id
-    `);
-    await db.close();
-    return agendamentos;
-}
-
-
-(async () => {
-    await inicializarTabelas();
-    await inserirProcedimentosIniciais();
-})();
-
-const client = new Client();
-const delay = ms => new Promise(res => setTimeout(res, ms));
-
-const sendMessageWithTyping = async (chat, client, to, message, typingDelay = 1500, messageDelay = 500) => {
-    await delay(typingDelay);
-    await chat.sendStateTyping();
-    await delay(messageDelay);
-    await client.sendMessage(to, message);
-};
 
 client.on('qr', qr => {
     qrcode.generate(qr, { small: true });

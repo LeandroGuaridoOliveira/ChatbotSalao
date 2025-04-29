@@ -191,18 +191,6 @@
 
   <h1>Agendamentos</h1>
 
-  <% if (msg) { %>
-    <div id="alert-box" class="bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded-xl mb-4 shadow flex items-start justify-between">
-      <div class="flex items-center gap-2">
-        <span class="text-green-600 text-xl font-bold">✔️</span>
-        <p class="font-medium"><%= msg %></p>
-      </div>
-      <button onclick="document.getElementById('alert-box').remove()" class="text-green-700 hover:text-red-500 font-bold text-lg ml-4">
-        ❌
-      </button>
-    </div>
-  <% } %>
-
   <form method="get" action="/agendamentos" class="form-filtro">
     <label for="filtro">Filtrar por:</label>
     <select name="filtro" id="filtro" onchange="mostrarCampoFiltro(this.value)">

@@ -4,17 +4,89 @@
   <meta charset="UTF-8">
   <title>Login - Agendamentos</title>
   <style>
-    body { font-family: Arial, sans-serif; background-color: #ede7f6; margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; height: 100vh; }
-    .container { background: white; padding: 40px; border-radius: 8px; box-shadow: 0px 0px 10px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
-    h2 { color: #7e57c2; margin-bottom: 20px; }
-    button.selector { width: 100%; padding: 10px; margin-bottom: 10px; font-size: 16px; background: #7e57c2; color: white; border: none; border-radius: 4px; cursor: pointer; }
-    button.selector:hover { background: #5e35b1; }
-    form { display: none; margin-top: 20px; }
-    input[type="email"], input[type="password"] { width: 100%; padding: 10px; margin: 8px 0; border-radius: 4px; border: 1px solid #ccc; }
-    button.login { width: 100%; background: #7e57c2; color: white; border: none; padding: 10px; font-size: 16px; border-radius: 4px; margin-top: 10px; cursor: pointer; }
-    button.login:hover { background: #5e35b1; }
-    a { display: block; margin-top: 10px; color: #7e57c2; text-decoration: none; font-size: 14px; }
-    a:hover { text-decoration: underline; }
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #ede7f6;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 8px;
+      box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+    }
+
+    h2 {
+      color: #7e57c2;
+      margin-bottom: 20px;
+    }
+
+    .selector {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 10px;
+      font-size: 16px;
+      background: #7e57c2;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .selector:hover {
+      background: #5e35b1;
+    }
+
+    input[type="email"], input[type="password"] {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+
+    .login {
+      width: 100%;
+      background: #7e57c2;
+      color: white;
+      border: none;
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 4px;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+
+    .login:hover {
+      background: #5e35b1;
+    }
+
+    a {
+      display: block;
+      margin-top: 10px;
+      color: #7e57c2;
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .erro {
+      color: red;
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
@@ -22,12 +94,15 @@
 <div class="container">
   <h2>Bem-vindo!</h2>
 
-  <button class="selector" onclick="mostrarFormulario('admin')">Sou Administrador</button>
-  <button class="selector" onclick="mostrarFormulario('funcionario')">Sou Funcionário</button>
+  <% if (erro) { %>
+    <div class="erro"><%= erro %></div>
+  <% } %>
 
-  <!-- Formulário de login -->
+  <button class="selector" onclick="setTipo('admin')">Sou Administrador</button>
+  <button class="selector" onclick="setTipo('funcionario')">Sou Funcionário</button>
+
   <form id="formulario-login" method="POST" action="/login">
-    <input type="hidden" name="tipo" id="tipo">
+    <input type="hidden" name="tipo" id="tipo" value="admin">
     <input type="email" name="email" placeholder="E-mail" required>
     <input type="password" name="senha" placeholder="Senha" required>
     <button type="submit" class="login">Entrar</button>
@@ -37,8 +112,7 @@
 </div>
 
 <script>
-  function mostrarFormulario(tipo) {
-    document.getElementById('formulario-login').style.display = 'block';
+  function setTipo(tipo) {
     document.getElementById('tipo').value = tipo;
   }
 </script>

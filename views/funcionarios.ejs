@@ -6,11 +6,11 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      margin: 20px;
+      margin: 30px;
       background-color: #f2f2f2;
     }
     .navegacao {
-      margin-bottom: 20px;
+      margin-bottom: 30px;
       text-align: center;
     }
     .navegacao a {
@@ -25,7 +25,7 @@
     }
     .container {
       background: #fff;
-      padding: 20px 30px;
+      padding: 30px 30px;
       border-radius: 10px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       max-width: 900px;
@@ -39,7 +39,7 @@
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 10px;
+      margin-top: 20px;
     }
     th, td {
       padding: 12px;
@@ -125,7 +125,6 @@
   background-color: #c62828;
 }
 
-
   </style>
 </head>
 <body>
@@ -139,18 +138,30 @@
   <div class="container">
     <h1>Funcionários Cadastrados</h1>
 
+    <div style="overflow-x: auto;">
     <table>
       <thead>
         <tr>
           <th>Nome</th>
+          <th>Telefone</th>
+          <th>Email</th>
           <th>Especialidades</th>
           <th>Ações</th>
         </tr>
       </thead>
+      
       <tbody>
         <% funcionarios.forEach(f => { %>
           <tr>
             <td><%= f.nome %></td>
+            <td>
+              <% if (f.telefone && f.telefone.length === 11) { %>
+                (<%= f.telefone.substring(0, 2) %>)<%= f.telefone.substring(2, 7) %>-<%= f.telefone.substring(7) %>
+              <% } else { %>
+                <%= f.telefone || '-' %>
+              <% } %>
+            </td>            
+            <td><%= f.email || '-' %></td>
             <td><%= f.especialidades || '-' %></td>
             <td>
               <div class="grupo-botoes">
@@ -161,48 +172,49 @@
                 <form method="GET" action="/expediente-funcionario/<%= f.id %>">
                   <button type="submit" class="botao-roxo botao-largo">Expediente</button>
                 </form>
-
-                <form method="POST" action="/excluir-funcionario/<%= f.id %>" onsubmit="return confirm('Tem certeza que deseja excluir este funcionário?')">
-                  <button type="submit" class="botao-vermelho botao-largo">Excluir</button>
-                </form>
-              
-
+      
+                <button type="button" class="botao-vermelho botao-largo" onclick="confirmarExclusaoFuncionario(<%= f.id %>)">
+                  Excluir
+                </button>
               </div>
-              
-              </form>
             </td>
           </tr>
         <% }) %>
       </tbody>
+      
     </table>
   </div>
+</div>
 
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
   <script>
-    document.querySelectorAll('.form-excluir').forEach(form => {
-      form.addEventListener('submit', function(event) {
-        event.preventDefault(); // Evita envio imediato do formulário
-  
-        Swal.fire({
-          title: 'Tem certeza?',
-          text: "Esta ação não poderá ser desfeita!",
-          icon: 'warning',
-          showCancelButton: true,
-          confirmButtonColor: '#6f42c1',
-          cancelButtonColor: '#d33',
-          confirmButtonText: 'Sim, excluir!',
-          cancelButtonText: 'Cancelar'
-        }).then((result) => {
-          if (result.isConfirmed) {
-            form.submit(); // Se confirmar, envia o form
-          }
-        });
+    function confirmarExclusaoFuncionario(id) {
+      Swal.fire({
+        title: 'Tem certeza?',
+        text: 'Você deseja excluir este funcionário?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#6f42c1',
+        confirmButtonText: 'Sim, excluir',
+        cancelButtonText: 'Cancelar'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          fetch(`/funcionarios/${id}/excluir`, {
+            method: 'POST'
+          }).then(response => {
+            if (response.ok) {
+              Swal.fire('Excluído!', 'Funcionário removido com sucesso.', 'success')
+                .then(() => window.location.reload());
+            } else {
+              Swal.fire('Erro!', 'Erro ao excluir funcionário.', 'error');
+            }
+          });
+        }
       });
-    });
+    }
   </script>
   
-
 
 </body>
 </html>
