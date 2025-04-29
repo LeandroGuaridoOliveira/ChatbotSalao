@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Esqueci Minha Senha</title>
+</head>
+<body>
+  <h2>Redefinir Senha</h2>
+  <% if (msg) { %>
+    <p style="color:red"><%= msg %></p>
+  <% } %>
+  <form action="/esqueci-senha" method="POST">
+    <label for="email">Digite seu e-mail:</label>
+    <input type="email" name="email" required>
+    <button type="submit">Enviar link de redefinição</button>
+  </form>
+  <a href="/login">Voltar ao login</a>
+</body>
+</html>

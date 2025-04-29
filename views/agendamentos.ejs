@@ -170,14 +170,24 @@
 </head>
 <body>
 
-  <div class="navegacao">
-    <a href="/novo-agendamento">Novo Agendamento</a> |
-    <a href="/funcionarios">Funcionários</a> |
-    <a href="/procedimentos">Procedimentos</a> |
-    <a href="/especialidades">Especialidades</a> |
-    <a href="/relatorios">Relatórios</a> |
-    <a href="/logout">Sair</a>
+  <div style="text-align: right; margin-bottom: 10px; font-size: 16px; color: #7e57c2;">
+    Olá, <%= nome_usuario %>!
   </div>
+
+  <div style="margin-bottom: 20px;">
+    <% if (tipo === 'admin') { %>
+      <a href="/novo-agendamento">Novo Agendamento</a> |
+      <a href="/funcionarios">Funcionários</a> |
+      <a href="/procedimentos">Procedimentos</a> |
+      <a href="/especialidades">Especialidades</a> |
+      <a href="/relatorios">Relatórios</a> |
+      <a href="/logout">Sair</a>
+    <% } else { %>
+      <a href="/novo-agendamento">Novo Agendamento</a> |
+      <a href="/logout">Sair</a>
+    <% } %>
+  </div>
+  
 
   <h1>Agendamentos</h1>
 
@@ -349,6 +359,16 @@
       }
     }
   }
+  app.get('/logout', (req, res) => {
+  req.session.destroy(err => {
+    if (err) {
+      console.error('Erro ao destruir a sessão:', err);
+      return res.send('Erro ao fazer logout.');
+    }
+    res.redirect('/login');
+  });
+});
+
 </script>
 
 </body>

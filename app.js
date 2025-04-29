@@ -8,6 +8,8 @@ const dayjs = require('dayjs'); // use `npm install dayjs` se ainda não tiver
 const duration = require('dayjs/plugin/duration');
 const isSameOrBefore = require('dayjs/plugin/isSameOrBefore');
 const fs = require('fs');
+const { enviarEmailBoasVindas } = require('./emailService');
+const { enviarConviteFuncionario } = require('./emailService');
 dayjs.extend(isSameOrBefore);
 dayjs.extend(duration);
 
@@ -40,43 +42,49 @@ app.use(session({
     resave: false,
     saveUninitialized: false
 }));
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
 async function abrirBanco() {
-    return open({
-        filename: './banco.db',
-        driver: sqlite3.Database
-    });
-}
-
-async function inicializarUsuarios() {
-    const db = await abrirBanco();
-    await db.run(`
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            login TEXT UNIQUE,
-            senhaHash TEXT
-        );
-    `);
-    const usuario = await db.get('SELECT * FROM usuarios WHERE login = ?', ['admin']);
-    if (!usuario) {
-        const hash = bcrypt.hashSync('admin123', 10);
-        await db.run('INSERT INTO usuarios (login, senhaHash) VALUES (?, ?)', ['admin', hash]);
-    }
-
-    await db.close();
-
-    
+  return open({
+    filename: './banco.db',
+    driver: sqlite3.Database
+  });
 }
 
 
-
+    async function inicializarUsuarios() {
+      const db = await abrirBanco();
+      
+      await db.run(`
+          CREATE TABLE IF NOT EXISTS usuarios (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              empresa_id INTEGER,
+              nome TEXT,
+              email TEXT UNIQUE,
+              senha TEXT,
+              tipo TEXT,
+              token_redefinicao TEXT,
+              expira_token TEXT,
+              FOREIGN KEY (empresa_id) REFERENCES empresas(id)
+          );
+      `);
+  
+      await db.close();
+      }
 
 async function inicializarTabelas() {
     const db = await abrirBanco();
   
-
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS empresas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome_empresa TEXT NOT NULL,
+        email_admin TEXT NOT NULL UNIQUE,
+        senha_admin TEXT NOT NULL
+      );
+    `);
 
     
     await db.run(`
@@ -170,8 +178,58 @@ async function inicializarTabelas() {
           );
         `);
         
+
+        await db.run(`
+          CREATE TABLE IF NOT EXISTS empresas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome_empresa TEXT NOT NULL,
+            email_admin TEXT NOT NULL UNIQUE,
+            senha_admin TEXT NOT NULL
+          );
+        `);
+        
   }
-      
+
+
+  async function criarEmpresaEAdminPadrao() {
+      const db = await abrirBanco();
+  
+      // Verifica se já existe uma empresa cadastrada
+      const empresaExistente = await db.get('SELECT * FROM empresas LIMIT 1');
+  
+      if (!empresaExistente) {
+          console.log('Nenhuma empresa encontrada. Criando empresa e admin padrão...');
+  
+          // Cria empresa padrão
+          await db.run(`
+              INSERT INTO empresas (nome_empresa, email_admin, senha_admin)
+              VALUES (?, ?, ?)
+          `, ['Minha Empresa Exemplo', 'admin@example.com', await bcrypt.hash('admin123', 10)]);
+  
+          const empresaCriada = await db.get('SELECT id FROM empresas WHERE email_admin = ?', ['admin@example.com']);
+  
+          // Cria usuário admin padrão com senha criptografada
+          const senhaCriptografada = await bcrypt.hash('admin123', 10);
+  
+          await db.run(`
+              INSERT INTO usuarios (empresa_id, nome, email, senha, tipo)
+              VALUES (?, ?, ?, ?, ?)
+          `, [
+              empresaCriada.id,
+              'Administrador',
+              'admin@example.com',
+              senhaCriptografada,
+              'admin'
+          ]);
+  
+          console.log('Empresa e administrador padrão criados com sucesso (senha segura)!');
+      }
+  
+      await db.close();
+  }
+  
+
+
 async function inserirProcedimentosIniciais() {
     const db = await abrirBanco();
     const procedimentos = [
@@ -180,18 +238,7 @@ async function inserirProcedimentosIniciais() {
       { nome: "Escova", valor: 50, duracao: 45 },
       { nome: "Manicure", valor: 30, duracao: 30 },
       { nome: "Pedicure", valor: 35, duracao: 30 }
-    ];
-    
-
-    async function inserirEspecialidadesPadrao() {
-        const db = await abrirBanco();
-        const padroes = ["Cabelereiro", "Manicure", "Pedicure", "Estética", "Colorista"];
-        for (const nome of padroes) {
-          await db.run(`INSERT OR IGNORE INTO especialidades (nome) VALUES (?)`, [nome]);
-        }
-        await db.close();
-      }
-      
+    ];    
 
     const row = await db.get('SELECT COUNT(*) as total FROM procedimentos');
     if (row.total === 0) {
@@ -227,7 +274,7 @@ async function atualizarEstruturaBanco() {
     await db.close();
   }
   
-  
+
   // Função para inserir especialidades padrão no banco
   async function inserirEspecialidadesPadrao() {
     const db = await abrirBanco();
@@ -238,7 +285,6 @@ async function atualizarEstruturaBanco() {
     await db.close();
   }
   
-
   (async () => {
     await inicializarUsuarios();
     await inicializarTabelas();
@@ -246,7 +292,9 @@ async function atualizarEstruturaBanco() {
     await atualizarEstruturaBanco(); 
     await inserirProcedimentosIniciais();
     await inserirEspecialidadesPadrao();
+    await criarEmpresaEAdminPadrao(); // <==== adicione essa linha aqui!
   })();
+  
   
   
 function formatarCPF(cpf) {
@@ -254,31 +302,31 @@ function formatarCPF(cpf) {
 }
 
 function requireLogin(req, res, next) {
-    if (req.session && req.session.usuarioLogado) return next();
-    res.redirect('/login');
+  if (req.session && req.session.usuarioLogado) {
+    return next();
+  }
+  res.redirect('/login');
 }
+
+
 
 // ROTAS
 app.get('/login', (req, res) => {
     res.render('login', { erro: null });
 });
 
-app.post('/login', async (req, res) => {
-    const { login, senha } = req.body;
-    const db = await abrirBanco();
-    const usuario = await db.get('SELECT * FROM usuarios WHERE login = ?', [login]);
-    await db.close();
-    if (usuario && bcrypt.compareSync(senha, usuario.senhaHash)) {
-        req.session.usuarioLogado = usuario.login;
-        return res.redirect('/agendamentos');
-    } else {
-        return res.render('login', { erro: 'Usuário ou senha inválidos.' });
-    }
-});
+
 
 app.get('/logout', (req, res) => {
-    req.session.destroy(() => res.redirect('/login'));
+  req.session.destroy(err => {
+    if (err) {
+      console.error('Erro ao destruir a sessão:', err);
+      return res.send('Erro ao fazer logout.');
+    }
+    res.redirect('/login');
+  });
 });
+
 
 app.get('/alterar-senha', requireLogin, (req, res) => {
     res.render('alterarSenha', { msg: null });
@@ -335,7 +383,6 @@ app.get('/agendamentos', requireLogin, async (req, res) => {
 
   let where = 'WHERE ' + whereClauses.join(' AND ');
   
-  
   const sql = `
 SELECT 
     a.id AS agendamento_id,
@@ -354,7 +401,6 @@ LEFT JOIN procedimentos p ON p.id = ap.procedimento_id
 ${where}
 GROUP BY a.id
 ORDER BY a.dia, a.horario
-
   `;
 
   const db = await abrirBanco();
@@ -384,7 +430,9 @@ ORDER BY a.dia, a.horario
            : filtro === 'procedimento' ? valorProcedimento
            : filtro === 'dia' ? valorData
            : filtro === 'funcionario' ? valorFuncionario
-           : ''
+           : '',
+      tipo: req.session.tipo,
+      nome_usuario: req.session.nome_usuario
   });
 });
 
@@ -1247,7 +1295,7 @@ app.post('/editar-agendamento/:id', requireLogin, async (req, res) => {
           temProximaPagina
         });
       });
-      
+    
     
     const PDFDocument = require('pdfkit'); // não esqueça de garantir esse import lá em cima!
 
@@ -1545,9 +1593,311 @@ app.get('/excluir-procedimento/:id', requireLogin, async (req, res) => {
     res.send('Erro ao excluir procedimento: ' + error.message);
   }
 });
+app.get('/cadastro', (req, res) => {
+  res.render('cadastro_empresa_admin', { msg: null });
+});
 
 
-      
+app.post('/cadastro', async (req, res) => {
+  const { nome_empresa, email_admin, senha_admin } = req.body;
+  const db = await abrirBanco();
+
+  try {
+    // Verifica se o e-mail já existe na tabela empresas
+    const empresaExistente = await db.get('SELECT * FROM empresas WHERE email_admin = ?', [email_admin]);
+
+    // Verifica se o e-mail já existe na tabela usuarios
+    const usuarioExistente = await db.get('SELECT * FROM usuarios WHERE email = ?', [email_admin]);
+
+    if (empresaExistente || usuarioExistente) {
+      await db.close();
+      return res.render('cadastro_empresa_admin', { msg: 'Já existe uma conta com este e-mail.' });
+    }
+
+    // Cria a empresa
+    const resultado = await db.run(`
+      INSERT INTO empresas (nome_empresa, email_admin, senha_admin)
+      VALUES (?, ?, ?)
+    `, [nome_empresa, email_admin, senha_admin]);
+
+    const empresa_id = resultado.lastID;
+
+    // Cria o usuário administrador vinculado
+    const senhaHash = await bcrypt.hash(senha_admin, 10);
+    await db.run(`
+      INSERT INTO usuarios (empresa_id, nome, email, senha, tipo)
+      VALUES (?, ?, ?, ?, 'admin')
+    `, [empresa_id, 'Administrador', email_admin, senhaHash]);
+
+    // Envia o e-mail de boas-vindas somente se tudo foi bem-sucedido
+    const { enviarEmailBoasVindas } = require('./emailService');
+    await enviarEmailBoasVindas(email_admin, nome_empresa);
+
+    await db.close();
+    res.render('sucessoCadastroEmpresa'); // você pode criar essa tela de confirmação
+  } catch (error) {
+    console.error('Erro ao cadastrar empresa:', error);
+    await db.close();
+    res.render('cadastro_empresa_admin', { msg: 'Erro ao cadastrar empresa. Tente novamente mais tarde.' });
+  }
+});
+
+
+app.get('/redefinir-senha/:token', async (req, res) => {
+  const { token } = req.params;
+  const db = await abrirBanco();
+
+  const usuario = await db.get(`
+    SELECT * FROM usuarios WHERE token_redefinicao = ? AND expira_token > datetime('now')
+  `, [token]);
+
+  await db.close();
+
+  if (!usuario) {
+    return res.send('Link inválido ou expirado.');
+  }
+
+  res.render('redefinirSenha', { token });
+});
+
+app.post('/redefinir-senha/:token', async (req, res) => {
+  const { token } = req.params;
+  const { senha, confirmarSenha } = req.body;
+  const db = await abrirBanco();
+
+  const usuario = await db.get(`
+    SELECT * FROM usuarios WHERE token_redefinicao = ? AND expira_token > datetime('now')
+  `, [token]);
+
+  if (!usuario) {
+    await db.close();
+    return res.send('Link inválido ou expirado.');
+  }
+
+  if (senha !== confirmarSenha) {
+    await db.close();
+    return res.send('As senhas não coincidem.');
+  }
+
+  const senhaHash = await bcrypt.hash(senha, 10);
+
+  await db.run(`
+    UPDATE usuarios
+    SET senha = ?, token_redefinicao = NULL, expira_token = NULL
+    WHERE id = ?
+  `, [senhaHash, usuario.id]);
+
+  await db.close();
+  res.send('Senha redefinida com sucesso! Agora você pode fazer login.');
+});
+
+
+app.post('/login', async (req, res) => {
+  const { email, senha } = req.body;
+
+  const db = await abrirBanco();
+  try {
+    const usuario = await db.get('SELECT * FROM usuarios WHERE email = ?', [email]);
+
+    if (!usuario) {
+      await db.close();
+      return res.render('login', { erro: 'Usuário não encontrado.' });
+    }
+
+    const senhaCorreta = await bcrypt.compare(senha, usuario.senha);
+
+    if (!senhaCorreta) {
+      await db.close();
+      return res.render('login', { erro: 'Senha incorreta.' });
+    }
+
+    req.session.usuarioLogado = usuario.email;  // ou o que quiser salvar
+    req.session.tipo = usuario.tipo;
+    req.session.nome_usuario = usuario.nome;
+    req.session.empresa_id = usuario.empresa_id;
+    
+    await db.close();
+    res.redirect('/agendamentos'); // ou /painel-admin, etc
+    
+
+  } catch (error) {
+    await db.close();
+    console.error(error);
+    res.send('Erro ao fazer login: ' + error.message);
+  }
+});
+
+app.post('/cadastro-empresa', async (req, res) => {
+  const { nome_empresa, email_admin, senha_admin, confirmar_senha } = req.body;
+
+  if (senha_admin !== confirmar_senha) {
+    return res.render('erroCadastroEmpresa', { erro: 'As senhas não coincidem.' });
+  }
+
+  const db = await abrirBanco();
+  try {
+    // Verifica se o e-mail já existe em 'usuarios'
+    const usuarioExistente = await db.get('SELECT * FROM usuarios WHERE email = ?', [email_admin]);
+    if (usuarioExistente) {
+      await db.close();
+      return res.render('erroCadastroEmpresa', { erro: 'Este e-mail já está em uso para outro usuário.' });
+    }
+
+    // Criptografa a senha
+    const senhaHash = await bcrypt.hash(senha_admin, 10);
+
+    // Cria a empresa
+    await db.run(`
+      INSERT INTO empresas (nome_empresa, email_admin, senha_admin)
+      VALUES (?, ?, ?)
+    `, [nome_empresa, email_admin, senhaHash]);
+
+    const empresaCriada = await db.get('SELECT id FROM empresas WHERE email_admin = ?', [email_admin]);
+
+    // Cria o usuário administrador
+    await db.run(`
+      INSERT INTO usuarios (empresa_id, nome, email, senha, tipo)
+      VALUES (?, ?, ?, ?, ?)
+    `, [
+      empresaCriada.id,
+      'Administrador',
+      email_admin,
+      senhaHash,
+      'admin'
+    ]);
+
+    await enviarEmailBoasVindas(email_admin, nome_empresa);
+
+    await db.close();
+    res.render('sucessoCadastroEmpresa');
+
+  } catch (error) {
+    await db.close();
+
+    if (error.code === 'SQLITE_CONSTRAINT' && error.message.includes('email_admin')) {
+      return res.render('erroCadastroEmpresa', {
+        erro: 'Já existe uma empresa cadastrada com esse e-mail.'
+      });
+    }
+    
+    console.error(error);
+    res.render('erroCadastroEmpresa', { erro: 'Erro ao cadastrar empresa: ' + error.message });
+  }
+});
+
+  
+
+
+app.get('/painel-admin', requireLogin, (req, res) => {
+  res.render('painelAdmin', {
+    nome_usuario: req.session.nome_usuario
+  });
+});
+
+app.get('/listar-usuarios', async (req, res) => {
+  const db = await abrirBanco();
+  const usuarios = await db.all('SELECT * FROM usuarios');
+  await db.close();
+  res.json(usuarios);
+});
+app.get('/esqueci-senha', (req, res) => {
+  res.render('esqueciSenha', { msg: null });
+});
+
+const crypto = require('crypto');
+const { enviarEmailRedefinicao } = require('./emailService');
+
+app.post('/esqueci-senha', async (req, res) => {
+  const { email } = req.body;
+  const db = await abrirBanco();
+
+  const usuario = await db.get('SELECT * FROM usuarios WHERE email = ?', [email]);
+
+  if (!usuario) {
+    await db.close();
+    return res.render('esqueciSenha', { msg: 'E-mail não encontrado.' });
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const expira = new Date(Date.now() + 1000 * 60 * 15).toISOString(); // 15 minutos
+
+  await db.run('UPDATE usuarios SET token_redefinicao = ?, expira_token = ? WHERE id = ?', [token, expira, usuario.id]);
+
+  await enviarEmailRedefinicao(email, token);
+  await db.close();
+
+  res.render('esqueciSenha', { msg: 'Link de redefinição enviado para seu e-mail.' });
+});
+
+app.get('/criar-senha', async (req, res) => {
+  const { token } = req.query;
+  const db = await abrirBanco();
+  const usuario = await db.get('SELECT * FROM usuarios WHERE token_redefinicao = ?', [token]);
+  await db.close();
+
+  if (!usuario || new Date() > new Date(usuario.expira_token)) {
+    return res.send('Token expirado ou inválido.');
+  }
+
+  res.render('criarSenha', { token, msg: null });
+});
+
+app.post('/criar-senha', async (req, res) => {
+  const { token, novaSenha, confirmarSenha } = req.body;
+
+  if (novaSenha !== confirmarSenha) {
+    return res.render('criarSenha', { token, msg: 'As senhas não coincidem.' });
+  }
+
+  const db = await abrirBanco();
+  const usuario = await db.get('SELECT * FROM usuarios WHERE token_redefinicao = ?', [token]);
+
+  if (!usuario || new Date() > new Date(usuario.expira_token)) {
+    await db.close();
+    return res.send('Token expirado ou inválido.');
+  }
+
+  const novaHash = await bcrypt.hash(novaSenha, 10);
+  await db.run(`
+    UPDATE usuarios 
+    SET senha = ?, token_redefinicao = NULL, expira_token = NULL 
+    WHERE id = ?
+  `, [novaHash, usuario.id]);
+
+  await db.close();
+
+  res.send(`
+    <html>
+      <head>
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+      </head>
+      <body>
+        <script>
+          Swal.fire({
+            icon: 'success',
+            title: 'Senha redefinida com sucesso!',
+            text: 'Agora você pode fazer login normalmente.',
+            confirmButtonText: 'Ir para o Login'
+          }).then((result) => {
+            if (result.isConfirmed) {
+              window.location.href = '/login';
+            }
+          });
+        </script>
+      </body>
+    </html>
+  `);
+});
+app.get('/verificar-email', async (req, res) => {
+  const { email } = req.query;
+  const db = await abrirBanco();
+  const empresa = await db.get('SELECT * FROM empresas WHERE email_admin = ?', [email]);
+  await db.close();
+
+  res.json({ existe: !!empresa });
+});
+
+
 app.get('/', (req, res) => res.redirect('/agendamentos'));
 
 app.listen(PORT, () => {

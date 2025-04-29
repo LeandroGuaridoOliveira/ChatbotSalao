@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Cadastro Realizado</title>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+  <script>
+    Swal.fire({
+      icon: 'success',
+      title: 'Cadastro realizado com sucesso!',
+      text: 'Sua empresa foi cadastrada. Agora você pode fazer login.',
+      confirmButtonText: 'Ir para o Login'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        window.location.href = '/login';
+      }
+    });
+  </script>
+</body>
+</html>

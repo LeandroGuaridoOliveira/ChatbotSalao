@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Criar Nova Senha</title>
+</head>
+<body>
+  <h2>Nova Senha</h2>
+  <% if (msg) { %>
+    <p style="color:red"><%= msg %></p>
+  <% } %>
+  <form action="/criar-senha" method="POST">
+    <input type="hidden" name="token" value="<%= token %>">
+    <label>Nova senha:</label>
+    <input type="password" name="novaSenha" required><br>
+    <label>Confirmar senha:</label>
+    <input type="password" name="confirmarSenha" required><br>
+    <button type="submit">Salvar nova senha</button>
+  </form>
+</body>
+</html>

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Erro ao cadastrar empresa</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+
+<script>
+Swal.fire({
+    icon: 'error',
+    title: 'Erro ao cadastrar empresa!',
+    text: '<%= erro %>',
+    confirmButtonText: 'Tentar novamente'
+}).then((result) => {
+    window.location.href = '/cadastro'; // Voltar para a tela de cadastro
+});
+</script>
+
+</body>
+</html>
