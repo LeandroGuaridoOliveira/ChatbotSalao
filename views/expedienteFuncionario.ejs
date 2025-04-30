@@ -132,16 +132,16 @@
           <th>Status</th>
         </tr>
         <% 
-          const diasSemana = [
-            { nome: "segunda", label: "Segunda-feira" },
-            { nome: "terca", label: "Terça-feira" },
-            { nome: "quarta", label: "Quarta-feira" },
-            { nome: "quinta", label: "Quinta-feira" },
-            { nome: "sexta", label: "Sexta-feira" },
-            { nome: "sabado", label: "Sábado" },
-            { nome: "domingo", label: "Domingo" }
-          ];
-    
+        const diasSemana = [
+        { nome: "segunda", label: "Segunda-feira", index: 1 },
+        { nome: "terca", label: "Terça-feira", index: 2 },
+        { nome: "quarta", label: "Quarta-feira", index: 3 },
+        { nome: "quinta", label: "Quinta-feira", index: 4 },
+        { nome: "sexta", label: "Sexta-feira", index: 5 },
+        { nome: "sabado", label: "Sábado", index: 6 },
+        { nome: "domingo", label: "Domingo", index: 0 }
+      ];
+
           diasSemana.forEach(dia => {
             const dados = expediente[dia.nome] || {};
             const ativo = dados.inicio && dados.fim;
@@ -154,7 +154,10 @@
             <button type="button" class="toggle-dia <%= ativo ? '' : 'inativo' %>" data-dia="<%= dia.nome %>">
               <%= ativo ? '✅ Ativo' : '🚫 Não trabalha' %>
             </button>
-            <input type="checkbox" name="ativo_<%= dia.nome %>" value="on" <%= ativo ? 'checked' : '' %> hidden>
+            
+            <input type="hidden" name="ativo_<%= dia.nome %>" value="<%= ativo ? 'on' : '' %>">
+            <input type="hidden" name="dia_semana_<%= dia.nome %>" value="<%= dia.index %>">
+            
           </td>
         </tr>
         <% }) %>
@@ -171,35 +174,40 @@
   <a href="/funcionarios">&larr; Voltar</a>
 
   <script>
-    document.querySelectorAll('.toggle-dia').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const dia = btn.dataset.dia;
-        const checkbox = document.querySelector(`input[name="ativo_${dia}"]`);
-        const inicio = document.querySelector(`input[name="inicio_${dia}"]`) || {};
-        const fim = document.querySelector(`input[name="fim_${dia}"]`) || {};
-        checkbox.checked = !checkbox.checked;
-        if (checkbox.checked) {
-          btn.textContent = '✅ Ativo';
-          btn.classList.remove('inativo');
-          inicio.disabled = false;
-          fim.disabled = false;
-        } else {
-          btn.textContent = '🚫 Não trabalha';
-          btn.classList.add('inativo');
-          inicio.disabled = true;
-          fim.disabled = true;
-        }
-      });
-    });
-    window.addEventListener('DOMContentLoaded', () => {
-      document.querySelectorAll('input[type="checkbox"][name^="ativo_"]').forEach(checkbox => {
-        if (!checkbox.checked) {
-          const dia = checkbox.name.split('ativo_')[1];
-          document.querySelector(`input[name="inicio_${dia}"]`).disabled = true;
-          document.querySelector(`input[name="fim_${dia}"]`).disabled = true;
-        }
-      });
-    });
+document.querySelectorAll('.toggle-dia').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const dia = btn.dataset.dia;
+    const inputAtivo = document.querySelector(`input[name="ativo_${dia}"]`);
+    const inicio = document.querySelector(`input[name="inicio_${dia}"]`);
+    const fim = document.querySelector(`input[name="fim_${dia}"]`);
+
+    const estaAtivo = inputAtivo.value === 'on';
+    inputAtivo.value = estaAtivo ? '' : 'on';
+
+    if (!estaAtivo) {
+      btn.textContent = '✅ Ativo';
+      btn.classList.remove('inativo');
+      inicio.disabled = false;
+      fim.disabled = false;
+    } else {
+      btn.textContent = '🚫 Não trabalha';
+      btn.classList.add('inativo');
+      inicio.disabled = true;
+      fim.disabled = true;
+    }
+  });
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('input[type="hidden"][name^="ativo_"]').forEach(input => {
+    if (input.value !== 'on') {
+      const dia = input.name.split('ativo_')[1];
+      document.querySelector(`input[name="inicio_${dia}"]`).disabled = true;
+      document.querySelector(`input[name="fim_${dia}"]`).disabled = true;
+    }
+  });
+});
+
   </script>
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>

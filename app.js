@@ -478,7 +478,6 @@ async function atualizarEstruturaBanco() {
   }
   
   
-
   // Função para inserir especialidades padrão no banco
 // Função para inserir especialidades padrão vinculadas a uma empresa específica
 async function inserirEspecialidadesPadrao(empresaId) {
@@ -1363,43 +1362,51 @@ app.post('/horarios-funcionario/:id/remover/:horarioId', requireLogin, async (re
   res.redirect(`/horarios-funcionario/${funcionarioId}`);
 });
 
-        // Redireciona para a página de horários do funcionário selecionado
-        app.get('/expediente-funcionario/:id', requireLogin, async (req, res) => {
-          const db = await abrirBanco();
-          const empresaId = req.session.usuarioLogado.empresa_id;
-          const funcionarioId = req.params.id;
-        
-          const funcionario = await db.get(
-            'SELECT * FROM funcionarios WHERE id = ? AND empresa_id = ?',
-            [funcionarioId, empresaId]
-          );
-        
-          if (!funcionario) {
-            await db.close();
-            return res.status(404).send('Funcionário não encontrado ou não pertence à sua empresa.');
-          }
-        
-          const registros = await db.all(`
-            SELECT dia_semana, inicio, fim
-            FROM horarios_expeds
-            WHERE funcionario_id = ?
-          `, [funcionarioId]);
-        
-          const expediente = {};
-          registros.forEach(r => {
-            expediente[r.dia_semana] = { inicio: r.inicio, fim: r.fim };
-          });
-        
-          await db.close();
-        
-          const sucesso = req.query.sucesso === '1';
-        
-          res.render('expedienteFuncionario', {
-            funcionario,
-            expediente,
-            sucesso
-          });
-        });
+app.get('/expediente-funcionario/:id', requireLogin, async (req, res) => {
+  const funcionarioId = req.params.id;
+  const empresaId = req.session.usuarioLogado.empresa_id;
+  const db = await abrirBanco();
+
+  const funcionario = await db.get('SELECT * FROM funcionarios WHERE id = ? AND empresa_id = ?', [funcionarioId, empresaId]);
+
+  if (!funcionario) {
+    await db.close();
+    return res.status(404).send('Funcionário não encontrado');
+  }
+
+  const expedienteBruto = await db.all(`
+    SELECT * FROM horarios_expeds WHERE funcionario_id = ?
+  `, [funcionarioId]);
+
+  const mapaIndiceParaNome = {
+    0: 'domingo',
+    1: 'segunda',
+    2: 'terca',
+    3: 'quarta',
+    4: 'quinta',
+    5: 'sexta',
+    6: 'sabado'
+  };
+
+  const expediente = {};
+  expedienteBruto.forEach(e => {
+    const nomeDia = mapaIndiceParaNome[e.dia_semana];
+    expediente[nomeDia] = {
+      inicio: e.inicio,
+      fim: e.fim
+    };
+  });
+
+  await db.close();
+
+  res.render('expedienteFuncionario', {
+    funcionario,
+    expediente,
+    sucesso: req.query.sucesso === '1' // ou Boolean(req.query.sucesso)
+  });
+  
+});
+
         
         app.post('/expediente-funcionario/:id', requireLogin, async (req, res) => {
           const funcionarioId = req.params.id;
@@ -1420,7 +1427,7 @@ app.post('/horarios-funcionario/:id/remover/:horarioId', requireLogin, async (re
               return res.status(403).send('Funcionário não encontrado ou não pertence à sua empresa.');
             }
         
-            // Remove os expedientes antigos apenas se o vínculo com empresa existir
+            // Remove os expedientes antigos
             await db.run(`
               DELETE FROM horarios_expeds
               WHERE funcionario_id = ?
@@ -1431,12 +1438,13 @@ app.post('/horarios-funcionario/:id/remover/:horarioId', requireLogin, async (re
               if (req.body[`ativo_${dia}`]) {
                 const inicio = req.body[`inicio_${dia}`];
                 const fim = req.body[`fim_${dia}`];
+                const dia_semana = parseInt(req.body[`dia_semana_${dia}`], 10); // agora como número
         
-                if (inicio && fim) {
+                if (inicio && fim && !isNaN(dia_semana)) {
                   await db.run(`
                     INSERT INTO horarios_expeds (funcionario_id, dia_semana, inicio, fim)
                     VALUES (?, ?, ?, ?)
-                  `, [funcionarioId, dia, inicio, fim]);
+                  `, [funcionarioId, dia_semana, inicio, fim]);
                 }
               }
             }
@@ -1450,6 +1458,7 @@ app.post('/horarios-funcionario/:id/remover/:horarioId', requireLogin, async (re
             res.status(500).send('Erro ao salvar expediente.');
           }
         });
+        
         app.get('/corrigir-expediente', requireLogin, async (req, res) => {
           console.log("⚙️ Rota /corrigir-expediente foi chamada!");
         
@@ -1511,7 +1520,36 @@ app.post('/horarios-funcionario/:id/remover/:horarioId', requireLogin, async (re
           res.send('Durações corrigidas com sucesso!');
         });
         
-
+        app.get('/converter-expediente-dia', requireLogin, async (req, res) => {
+          const db = await abrirBanco();
+        
+          const conversoes = {
+            'domingo': 0,
+            'segunda': 1,
+            'terca': 2,
+            'quarta': 3,
+            'quinta': 4,
+            'sexta': 5,
+            'sabado': 6
+          };
+        
+          try {
+            for (const [texto, numero] of Object.entries(conversoes)) {
+              await db.run(`
+                UPDATE horarios_expeds
+                SET dia_semana = ?
+                WHERE dia_semana = ?
+              `, [numero, texto]);
+            }
+        
+            await db.close();
+            res.send('✅ Conversão dos dias da semana concluída com sucesso.');
+          } catch (error) {
+            console.error('Erro ao converter dias da semana:', error);
+            res.status(500).send('Erro ao converter dias da semana.');
+          }
+        });
+        
 app.get('/procedimentos', requireLogin, async (req, res) => {
   try {
     const empresaId = req.session.usuarioLogado?.empresa_id;
