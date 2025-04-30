@@ -79,7 +79,7 @@
       color: #5e35b1;
     }
   
-    /* Links de navegação */
+    /* Links de navegação padrão (rodapé ou lateral) */
     .links {
       margin-top: 30px;
       font-size: 15px;
@@ -95,22 +95,25 @@
       text-decoration: underline;
     }
   
-    /* Navegação acima da tabela */
-    .navegacao {
-      margin-bottom: 10px;
+    /* Navegação acima da tabela (centralizado, roxo e bold) */
+    .links-centralizados {
       text-align: center;
+      margin-bottom: 20px;
     }
   
-    .navegacao a {
+    .link-padrao {
+      display: inline-block;
       margin: 0 10px;
-      text-decoration: none;
-      color: #6f42c1;
+      color: #7e57c2;
       font-weight: bold;
+      text-decoration: none;
+      font-size: 16px;
       transition: color 0.3s;
     }
   
-    .navegacao a:hover {
+    .link-padrao:hover {
       color: #5a34a1;
+      text-decoration: underline;
     }
   
     /* Estilos de grupo de botões */
@@ -165,6 +168,60 @@
     .botao-verde:hover {
       background-color: #388e3c;
     }
+
+    .filtro-titulo {
+  text-align: left;
+  margin-bottom: 20px;
+  font-size: 20px;
+  font-weight: bold;
+  color: #5e35b1;
+}
+
+.dropdown {
+  display: inline-block;
+  position: relative;
+  margin-left: 8px;
+}
+
+.dropbtn {
+  background-color: transparent;
+  color: #7e57c2;
+  font-weight: bold;
+  border: none;
+  cursor: pointer;
+  font-size: 20px;
+  text-decoration: underline;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  background-color: #fff;
+  min-width: 180px;
+  box-shadow: 0px 4px 6px rgba(0,0,0,0.2);
+  z-index: 10;
+  border-radius: 6px;
+  padding: 4px 0;
+}
+
+.dropdown-content a {
+  color: #5e35b1;
+  padding: 10px 16px;
+  text-decoration: none;
+  display: block;
+  font-weight: normal;
+  font-size: 14px;
+}
+
+.dropdown-content a:hover {
+  background-color: #f0ebfa;
+  font-weight: bold;
+}
+
+.dropdown:hover .dropdown-content {
+  display: block;
+}
+
   </style>
   
 </head>
@@ -174,64 +231,140 @@
     Olá, <%= nome_usuario %>!
   </div>
 
-  <div style="margin-bottom: 20px;">
+  <div class="links-centralizados">
     <% if (tipo === 'admin') { %>
-      <a href="/novo-agendamento">Novo Agendamento</a> |
-      <a href="/funcionarios">Funcionários</a> |
-      <a href="/procedimentos">Procedimentos</a> |
-      <a href="/especialidades">Especialidades</a> |
-      <a href="/relatorios">Relatórios</a> |
-      <a href="/logout">Sair</a>
+      <a href="/novo-agendamento" class="link-padrao">Novo Agendamento</a> |
+      <a href="/funcionarios "class="link-padrao" >Funcionários</a> |
+      <a href="/procedimentos"class="link-padrao">Procedimentos</a> |
+      <a href="/especialidades"class="link-padrao">Especialidades</a> |
+      <a href="/relatorios"class="link-padrao">Relatórios</a> |
+      <a href="/logout"class="link-padrao">Sair</a>
     <% } else { %>
-      <a href="/novo-agendamento">Novo Agendamento</a> |
-      <a href="/logout">Sair</a>
+      <a href="/novo-agendamento"class="link-padrao">Novo Agendamento</a> |
+      <a href="/logout"class="link-padrao">Sair</a>
     <% } %>
   </div>
   
 
-  <h1>Agendamentos</h1>
 
-  <form method="get" action="/agendamentos" class="form-filtro">
-    <label for="filtro">Filtrar por:</label>
-    <select name="filtro" id="filtro" onchange="mostrarCampoFiltro(this.value)">
-      <option value="">Escolha...</option>
-      <option value="nome" <%= filtro==='nome' ? 'selected' : '' %>>Nome</option>
-      <option value="cpf" <%= filtro==='cpf' ? 'selected' : '' %>>CPF</option>
-      <option value="procedimento" <%= filtro==='procedimento' ? 'selected' : '' %>>Procedimento</option>
-      <option value="dia" <%= filtro==='dia' ? 'selected' : '' %>>Dia</option>
-      <option value="funcionario" <%= filtro==='funcionario' ? 'selected' : '' %>>Funcionário</option>
-    </select>
+<!-- Filtro simples por cliente -->
+<div class="filtro-titulo" style="margin-bottom: 12px;">
+  <span style="font-size: 20px; font-weight: bold; color: #5e35b1;">🔍 Filtrar por:</span>
+  <select id="tipoFiltro" onchange="mostrarFiltroSelecionado()" style="margin-left: 12px; padding: 4px 10px;">
+    <option value="">Selecione</option>
+    <option value="cliente">Cliente</option>
+    <option value="funcionario">Funcionário</option>
+    <option value="dia">Dia</option>
+    <option value="semana">Semana</option>
+  </select>
+</div>
 
-    <select name="valorFuncionario" id="campoFuncionario" style="display:none;">
-      <option value="">Todos os funcionários</option>
-      <% funcionarios.forEach(f => { %>
-        <option value="<%= f.id %>" <%= valorFuncionario == f.id ? "selected" : "" %>>
-          <%= f.nome %> - <%= f.especialidade %>
-        </option>
-      <% }) %>
-    </select>
+<div id="areaFiltroSelecionado" style="margin-top: 10px;"></div>
 
-    <input type="text" name="valorTexto" id="campoTexto"
-      style="display:none;"
-      value="<%= (filtro==='nome' || filtro==='cpf') ? valor : '' %>"
-      placeholder="Digite para buscar" autocomplete="off" />
+<script>
+  const funcionarios = <%- JSON.stringify(funcionarios || []) %>;
 
-    <select name="valorProcedimento" id="campoProcedimento" style="display:none;">
-      <% listaProcedimentos.forEach(p => { %>
-        <option value="<%= p.id %>" <%= valor == p.id ? 'selected' : '' %>><%= p.nome %></option>
-      <% }) %>
-    </select>
+  function mostrarFiltroSelecionado() {
+    const tipo = document.getElementById('tipoFiltro').value;
+    const area = document.getElementById('areaFiltroSelecionado');
+    area.innerHTML = '';
 
-    <input type="date" name="valorData" id="campoData"
-      style="display:none;"
-      value="<%= filtro==='dia' ? valor : '' %>" />
+    if (tipo === 'cliente') {
+      area.innerHTML = `
+        <form method="GET" action="/agendamentos">
+          <table class="filtro-tabela">
+            <tr>
+              <td><label for="cliente">Cliente:</label></td>
+              <td><input type="text" name="cliente" id="cliente" placeholder="Nome ou CPF"></td>
+              <td><button type="submit">Filtrar</button></td>
+            </tr>
+          </table>
+        </form>
+      `;
+    } else if (tipo === 'funcionario') {
+      let opcoes = '<option value="">Todos</option>';
+      funcionarios.forEach(f => {
+        opcoes += `<option value="${f.id}">${f.nome}</option>`;
+      });
+      area.innerHTML = `
+        <form method="GET" action="/agendamentos">
+          <table class="filtro-tabela">
+            <tr>
+              <td><label for="funcionario">Funcionário:</label></td>
+              <td>
+                <select name="funcionario" id="funcionario">
+                  ${opcoes}
+                </select>
+              </td>
+              <td><button type="submit">Filtrar</button></td>
+            </tr>
+          </table>
+        </form>
+      `;
+    } else if (tipo === 'dia') {
+      area.innerHTML = `
+        <form method="GET" action="/agendamentos">
+          <table class="filtro-tabela">
+            <tr>
+              <td><label for="dataDia">Dia:</label></td>
+              <td><input type="date" name="dataDia" id="dataDia"></td>
+              <td><button type="submit">Filtrar</button></td>
+            </tr>
+          </table>
+        </form>
+      `;
+    } else if (tipo === 'semana') {
+      area.innerHTML = `
+        <form method="GET" action="/agendamentos">
+          <table class="filtro-tabela">
+            <tr>
+              <td><label for="dataSemana">Semana:</label></td>
+              <td><input type="week" name="dataSemana" id="dataSemana"></td>
+              <td><button type="submit">Filtrar</button></td>
+            </tr>
+          </table>
+        </form>
+      `;
+    }
+  }
+</script>
 
-    <button type="submit">Filtrar</button>
+<style>
+  .filtro-tabela {
+    background: #fff;
+    padding: 12px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px #ccc;
+    margin-top: 10px;
+  }
+  .filtro-tabela td {
+    padding: 4px 8px;
+  }
+</style>
 
-    <% if (filtro) { %>
-      <a href="/agendamentos">(Limpar filtro)</a>
-    <% } %>
-  </form>
+
+<script>
+  function toggleFiltros() {
+    const area = document.getElementById('areaFiltros');
+    area.style.display = area.style.display === 'none' ? 'block' : 'none';
+  }
+</script>
+
+
+<!-- Título clicável com dropdown para alternar os períodos -->
+<div class="filtro-titulo">
+  <span>📅 Agendamentos de:</span>
+  <div class="dropdown">
+    <button class="dropbtn"><%= tipoDataTitulo %></button>
+    <div class="dropdown-content">
+      <a href="/agendamentos?tipoData=dia&dataDia=<%= hoje %>">Hoje</a>
+      <a href="/agendamentos?tipoData=semana&dataSemana=<%= semanaAtual %>">Esta Semana</a>
+      <a href="/agendamentos?tipoData=mes&dataMes=<%= mesAtual %>">Este Mês</a>
+      <a href="/agendamentos?tipoData=ano&dataAno=<%= anoAtual %>">Este Ano</a>
+      <a href="/agendamentos">Todos</a>
+    </div>
+  </div>
+</div>
 
   <table>
     <tr>
@@ -254,7 +387,15 @@
           <tr id="linha-agendamento-<%= a.agendamento_id %>">
             <td><%= a.cliente_nome %></td>
             <td><%= a.cliente_cpf %></td>
-            <td><%= a.dia %></td>
+            <td>
+              <% if (a.dia) {
+                const partes = a.dia.split('-');
+              %>
+                <%= partes[2] %>/<%= partes[1] %>/<%= partes[0] %>
+              <% } else { %>
+                -
+              <% } %>
+            </td>
             <td><%= a.horario %></td>
             <td><%= a.nomes_procedimentos %></td>
             <td><%= a.funcionario_nome || "Não atribuído" %></td>
@@ -272,14 +413,13 @@
                 <form method="post" action="/apagar-agendamento/<%= a.agendamento_id %>" class="form-excluir-agendamento">
                   <button type="submit" class="botao-vermelho botao-largo">Excluir</button>
                 </form>
-            
               </div>
             </td>
-            
           </tr>
         <% }) %>
       <% } %>
-    </tbody>    
+    </tbody>
+    
   </table>
   
 
@@ -358,6 +498,55 @@
 });
 
 </script>
+
+<script>
+  // Estes valores são passados do backend para o front
+  const valoresData = {
+    dia: "<%= dataDia || hoje %>",
+    semana: "<%= dataSemana || semanaAtual %>",
+    mes: "<%= dataMes || mesAtual %>",
+    ano: "<%= dataAno || anoAtual %>"
+  };
+
+  function atualizarCampoData() {
+    const tipo = document.getElementById('tipoData').value;
+    const container = document.getElementById('campoData');
+    container.innerHTML = ''; // limpa antes
+
+    if (tipo === 'dia') {
+      container.innerHTML = `
+        <label for="dataDia">Escolha o dia:</label>
+        <input type="date" name="dataDia" id="dataDia" required>
+      `;
+      document.getElementById('dataDia').value = valoresData.dia;
+    } else if (tipo === 'semana') {
+      container.innerHTML = `
+        <label for="dataSemana">Escolha a semana:</label>
+        <input type="week" name="dataSemana" id="dataSemana" required>
+      `;
+      document.getElementById('dataSemana').value = valoresData.semana;
+    } else if (tipo === 'mes') {
+      container.innerHTML = `
+        <label for="dataMes">Escolha o mês:</label>
+        <input type="month" name="dataMes" id="dataMes" required>
+      `;
+      document.getElementById('dataMes').value = valoresData.mes;
+    } else if (tipo === 'ano') {
+      const anoAtual = new Date().getFullYear();
+      let selectHTML = '<label for="dataAno">Escolha o ano:</label><select name="dataAno" id="dataAno" required>';
+      for (let i = anoAtual; i >= anoAtual - 10; i--) {
+        const selected = i == valoresData.ano ? 'selected' : '';
+        selectHTML += `<option value="${i}" ${selected}>${i}</option>`;
+      }
+      selectHTML += '</select>';
+      container.innerHTML = selectHTML;
+    }
+  }
+
+  // Executa ao carregar a página
+  window.addEventListener('DOMContentLoaded', atualizarCampoData);
+</script>
+
 
 </body>
 </html>

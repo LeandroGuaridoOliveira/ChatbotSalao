@@ -1,3 +1,4 @@
+// --- Imports e extensões ---
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
@@ -7,12 +8,15 @@ const path = require('path');
 const dayjs = require('dayjs');
 const duration = require('dayjs/plugin/duration');
 const isSameOrBefore = require('dayjs/plugin/isSameOrBefore');
+const isoWeek = require('dayjs/plugin/isoWeek');
 const fs = require('fs');
-const PDFDocument = require('pdfkit'); 
-const { enviarEmailBoasVindas } = require('./emailService');
-const { enviarConviteFuncionario } = require('./emailService');
-dayjs.extend(isSameOrBefore);
+const PDFDocument = require('pdfkit');
+
+const { enviarEmailBoasVindas, enviarConviteFuncionario } = require('./emailService');
+
 dayjs.extend(duration);
+dayjs.extend(isSameOrBefore);
+dayjs.extend(isoWeek);
 
 
 // Função para registrar erros
@@ -588,38 +592,60 @@ app.post('/alterar-senha', requireLogin, async (req, res) => {
   });
 });
 
-
 app.get('/agendamentos', requireLogin, async (req, res) => {
-  const { filtro, valorTexto, valorProcedimento, valorData, valorFuncionario } = req.query;
+  const {
+    cliente,
+    funcionario,
+    tipoData,
+    dataDia,
+    dataSemana,
+    dataMes,
+    dataAno
+  } = req.query;
+
   const empresaId = req.session.usuarioLogado.empresa_id;
 
-  let whereClauses = [];
-  let params = [];
+  let whereClauses = ['a.finalizado = 0', 'a.empresa_id = ?'];
+  let params = [empresaId];
 
-  if (filtro) {
-    if (filtro === 'nome') {
-      whereClauses.push('c.nome LIKE ?');
-      params.push(`%${valorTexto}%`);
-    } else if (filtro === 'cpf') {
+  if (cliente) {
+    if (/^\d/.test(cliente)) {
       whereClauses.push('c.cpf LIKE ?');
-      params.push(`%${valorTexto.replace(/\D/g, '')}%`);
-    } else if (filtro === 'procedimento') {
-      whereClauses.push(`a.id IN (
-        SELECT agendamento_id FROM agendamento_procedimentos WHERE procedimento_id = ?
-      )`);
-      params.push(valorProcedimento);
-    } else if (filtro === 'dia') {
-      whereClauses.push('a.dia = ?');
-      params.push(valorData);
-    } else if (filtro === 'funcionario') {
-      whereClauses.push('a.funcionario_id = ?');
-      params.push(valorFuncionario);
+      params.push(`%${cliente.replace(/\D/g, '')}%`);
+    } else {
+      whereClauses.push('c.nome LIKE ?');
+      params.push(`%${cliente}%`);
     }
   }
 
-  whereClauses.push('a.finalizado = 0');
-  whereClauses.push('a.empresa_id = ?');
-  params.push(empresaId);
+  if (funcionario) {
+    whereClauses.push('a.funcionario_id = ?');
+    params.push(funcionario);
+  }
+
+  if (tipoData === 'dia' && dataDia) {
+    whereClauses.push('a.dia = ?');
+    params.push(dataDia);
+  } else if (tipoData === 'semana' && dataSemana) {
+    const [ano, semana] = dataSemana.split('-W').map(Number);
+
+    const inicio = dayjs().year(ano).isoWeek(semana).startOf('isoWeek');
+    const fim = dayjs().year(ano).isoWeek(semana).endOf('isoWeek');
+
+    console.log('📥 dataSemana recebida:', dataSemana);
+    console.log('📆 Intervalo da semana:', inicio.format('YYYY-MM-DD'), 'até', fim.format('YYYY-MM-DD'));
+
+    whereClauses.push('a.dia BETWEEN ? AND ?');
+    params.push(inicio.format('YYYY-MM-DD'), fim.format('YYYY-MM-DD'));
+  } else if (tipoData === 'mes' && dataMes) {
+    const inicio = `${dataMes}-01`;
+    const fim = dayjs(inicio).endOf('month').format('YYYY-MM-DD');
+    whereClauses.push('a.dia BETWEEN ? AND ?');
+    params.push(inicio, fim);
+  } else if (tipoData === 'ano' && dataAno) {
+    whereClauses.push(`strftime('%Y', a.dia) = ?`);
+    params.push(dataAno);
+  }
 
   const where = 'WHERE ' + whereClauses.join(' AND ');
 
@@ -653,6 +679,17 @@ app.get('/agendamentos', requireLogin, async (req, res) => {
     a.cliente_cpf = formatarCPF(a.cliente_cpf);
   });
 
+  const hoje = dayjs().format('YYYY-MM-DD');
+  const semanaAtual = dayjs().isoWeekday(1).format('YYYY-[W]') + dayjs().isoWeek();
+  const mesAtual = dayjs().format('YYYY-MM');
+  const anoAtual = dayjs().format('YYYY');
+
+  let tipoDataTitulo = 'Todos os agendamentos';
+  if (tipoData === 'dia') tipoDataTitulo = 'Hoje';
+  else if (tipoData === 'semana') tipoDataTitulo = 'Esta Semana';
+  else if (tipoData === 'mes') tipoDataTitulo = 'Este Mês';
+  else if (tipoData === 'ano') tipoDataTitulo = 'Este Ano';
+
   const msg = req.session.msg || null;
   delete req.session.msg;
 
@@ -660,22 +697,24 @@ app.get('/agendamentos', requireLogin, async (req, res) => {
     ags: ags || [],
     listaProcedimentos: listaProcedimentos || [],
     funcionarios: funcionarios || [],
-    filtro: filtro || '',
-    valorTexto: valorTexto || '',
-    valorProcedimento: valorProcedimento || '',
-    valorData: valorData || '',
-    valorFuncionario: valorFuncionario || '',
+    cliente: cliente || '',
+    funcionario: funcionario || '',
+    tipoData: tipoData || '',
+    dataDia: dataDia || '',
+    dataSemana: dataSemana || '',
+    dataMes: dataMes || '',
+    dataAno: dataAno || '',
+    tipoDataTitulo,
+    hoje,
+    semanaAtual,
+    mesAtual,
+    anoAtual,
     msg,
-    valor:
-      filtro === 'nome' || filtro === 'cpf' ? valorTexto :
-      filtro === 'procedimento' ? valorProcedimento :
-      filtro === 'dia' ? valorData :
-      filtro === 'funcionario' ? valorFuncionario :
-      '',
     tipo: req.session.tipo,
     nome_usuario: req.session.nome_usuario
   });
 });
+
 
 app.get('/novo-agendamento', requireLogin, async (req, res) => {
   const db = await abrirBanco();
@@ -785,7 +824,7 @@ app.get('/funcionarios', requireLogin, async (req, res) => {
   const empresaId = req.session.usuarioLogado.empresa_id;
 
   const funcionarios = await db.all(`
-    SELECT f.id, f.nome, f.telefone, f.email,
+    SELECT f.id, f.nome, f.email, f.telefone,
            GROUP_CONCAT(e.nome, ', ') AS especialidades
     FROM funcionarios f
     LEFT JOIN funcionario_especialidades fe ON f.id = fe.funcionario_id
@@ -793,6 +832,7 @@ app.get('/funcionarios', requireLogin, async (req, res) => {
     WHERE f.empresa_id = ?
     GROUP BY f.id
   `, [empresaId, empresaId]);
+  
 
   const especialidades = await db.all('SELECT * FROM especialidades WHERE empresa_id = ?', [empresaId]);
 
@@ -810,26 +850,23 @@ app.get('/funcionarios', requireLogin, async (req, res) => {
 
 
 app.post('/funcionarios', requireLogin, async (req, res) => {
-  const { nome } = req.body;
-  let especialidade_ids = req.body.especialidade_ids;
+  const { nome, email, telefone, especialidade_ids } = req.body;
   const empresaId = req.session.usuarioLogado.empresa_id;
 
-  if (!Array.isArray(especialidade_ids)) {
-    especialidade_ids = especialidade_ids ? [especialidade_ids] : [];
-  }
+  const espIds = Array.isArray(especialidade_ids)
+    ? especialidade_ids
+    : (especialidade_ids ? [especialidade_ids] : []);
 
   const db = await abrirBanco();
   try {
-    // Inserir funcionário (sem especialidade diretamente)
     const result = await db.run(
       'INSERT INTO funcionarios (nome, email, telefone, ativo, empresa_id) VALUES (?, ?, ?, ?, ?)',
       [nome, email, telefone, 1, empresaId]
     );
-    
+
     const funcionarioId = result.lastID;
 
-    // Inserir especialidades relacionadas
-    for (const espId of especialidade_ids) {
+    for (const espId of espIds) {
       await db.run(
         'INSERT INTO funcionario_especialidades (funcionario_id, especialidade_id) VALUES (?, ?)',
         [funcionarioId, espId]
@@ -862,6 +899,7 @@ app.post('/funcionarios', requireLogin, async (req, res) => {
     await db.close();
   }
 });
+
 app.post('/funcionarios/:id/excluir', requireLogin, async (req, res) => {
   const db = await abrirBanco();
   const funcionarioId = req.params.id;
@@ -1030,8 +1068,11 @@ app.get('/editar-agendamento/:id', requireLogin, async (req, res) => {
       return res.status(404).send('Agendamento não encontrado ou pertence a outra empresa.');
   }
 
-  const clientes = await db.all('SELECT * FROM clientes WHERE empresa_id = ?', [empresaId]);
-
+  const cliente = await db.get(`
+    SELECT * FROM clientes 
+    WHERE id = ? AND empresa_id = ?
+  `, [agendamento.cliente_id, empresaId]);
+  
   const procedimentosSelecionados = await db.all(`
       SELECT procedimento_id FROM agendamento_procedimentos WHERE agendamento_id = ?
   `, [id]);
@@ -1046,7 +1087,7 @@ app.get('/editar-agendamento/:id', requireLogin, async (req, res) => {
 
   res.render('editarAgendamento', {
       agendamento,
-      clientes,
+      cliente,
       procedimentos,
       funcionarios,
       procedimentoIds,
@@ -2510,17 +2551,24 @@ app.get('/relatorios/excel', requireLogin, async (req, res) => {
 
   // Buscar procedimentos por agendamento
   for (const agendamento of agendamentos) {
+    // Formatar a data de yyyy-mm-dd para dd-mm-yyyy
+    if (agendamento.dia) {
+      const [ano, mes, diaStr] = agendamento.dia.split('-');
+      agendamento.dia = `${diaStr}-${mes}-${ano}`;
+    }
+  
+    // Buscar procedimentos do agendamento
     const procedimentos = await db.all(`
       SELECT p.nome, p.valor
       FROM agendamento_procedimentos ap
       JOIN procedimentos p ON p.id = ap.procedimento_id
       WHERE ap.agendamento_id = ?
     `, [agendamento.id]);
-
+  
     agendamento.procedimentos = procedimentos.map(p => p.nome).join(', ');
     agendamento.valor_total = procedimentos.reduce((total, p) => total + p.valor, 0);
   }
-
+  
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Agendamentos');
 
